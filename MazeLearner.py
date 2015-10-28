@@ -7,20 +7,20 @@ from GPPolicy import GPPolicy
 
 
 class MazeLearner:
-    def getMu(self):
+    def _getMu(self):
         pass
 
-    def getBw(self):
+    def _getBw(self):
         pass
 
-    def getInitialTheta(self):
+    def _getInitialTheta(self):
         pass
 
-    def getSamples(self):
+    def _getSamples(self):
         # use self.policy
         pass
 
-    def getFeatureExpectation(self, S, N):
+    def _getFeatureExpectation(self, S, N):
         S = repeat(S, N, axis=0)
         A = self.policy.evaluate(S)
 
@@ -29,24 +29,25 @@ class MazeLearner:
         return PHI_SA.reshape(-1, N, S.shape[1] + A.shape[1]).mean(1)
 
     def learn(self):
-        Mu = self.getMu()
-        bw = self.getBw()
-        self.rbf = RBFFeatureFunction(Mu, bw)
+        MuSA, MuS = self._getMu()
+        bwSA, bwS = self._getBw()
+        self.rbf = RBFFeatureFunction(MuSA, bwSA, MuS, bwS)
 
         lstd = LeastSquaresTD()
-        reps = REPS()
+        reps = AC_REPS()
         self.policy = GPPolicy()
 
         samplingIterations = 100
         learningIterations = 10
         numActionSamples = 100
 
+        theta = self._getInitialTheta()
+
         for i in range(1, samplingIterations):
             # TODO add samples? / change Mu, bw?
-            S, A, S_, R = self.getSamples()
+            S, A, S_, R = self._getSamples()
 
             PHI_SA = self.rbf.getStateActionFeatureMatrix(S, A)
-            theta = self.getInitialTheta()
 
             for j in range(1, learningIterations):
                 # LSTD to estimate Q function / Q(s,a) = phi(s, a).T * theta
@@ -56,6 +57,6 @@ class MazeLearner:
                 # AC-REPS
                 Q = PHI_SA * theta
                 PHI_S = self.rbf.getStateFeatureMatrix(S)
-
+                w = reps.computeWeighting(Q, PHI_S)
 
                 # GP ...

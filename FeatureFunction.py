@@ -17,16 +17,17 @@ class FeatureFunction:
 
 
 class RBFFeatureFunction(FeatureFunction):
-    # TODO seperate bandwidths for phi(s, a) and phi(s)?
-    def __init__(self, MuSA, MuS, bw):
-        self.setParameters(MuSA, MuS, bw)
+    def __init__(self, MuSA, bwSA, MuS, bwS):
+        self.setParameters(MuSA, bwSA, MuS, bwS)
 
-    def setParameters(self, MuSA, MuS, bw):
+    def setParameters(self, MuSA, bwSA, MuS, bwS):
         self.MuSA = asmatrix(MuSA)
-        self.MuS = asmatrix(MuS)
-        self.bw2 = square(bw)
+        self.bw2SA = square(bwSA)
 
-    def _computeFeatureMatrix(X, Mu, bw2):
+        self.MuS = asmatrix(MuS)
+        self.bw2S = square(bwS)
+
+    def _computeFeatureMatrix(self, X, Mu, bw2):
         X = asmatrix(X)
 
         Q = diagflat(1.0 / bw2)
@@ -40,7 +41,7 @@ class RBFFeatureFunction(FeatureFunction):
         return asmatrix(ev("exp(-0.5 * (B - 2 * C)) / s"))
 
     def getStateActionFeatureMatrix(self, S, A):
-        return _computeFeatureMatrix(c_[S, A], self.MuSA, self.bw2)
+        return self._computeFeatureMatrix(c_[S, A], self.MuSA, self.bw2SA)
 
     def getStateFeatureMatrix(self, S):
-        return _computeFeatureMatrix(S, self.MuS, self.bw2)
+        return self._computeFeatureMatrix(S, self.MuS, self.bw2S)

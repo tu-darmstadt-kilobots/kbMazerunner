@@ -59,7 +59,7 @@ class AC_REPS:
                 sumExpAdvantage + 2 * self.alphaL2ThetaPunishment * theta.T
         gD[0:self.numFeatures] = gDTheta
 
-        return g, 0.5 * gD # TODO 0.5 * gD ?
+        return g, 0.5 * gD
 
     def _numericDualFunctionGradient(self, params):
         params = asarray(params).squeeze()

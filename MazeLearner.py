@@ -3,14 +3,17 @@ from numpy import c_, repeat
 from LeastSquaresTD import LeastSquaresTD
 from FeatureFunction import RBFFeatureFunction
 from AC_REPS import AC_REPS
-from GPPolicy import GPPolicy
-
+from Kernel import ExponentialQuadraticKernel
+from SparseGPPolicy import SparseGPPolicy
 
 class MazeLearner:
     def _getMu(self):
         pass
 
     def _getBw(self):
+        pass
+
+    def _getKernel(self):
         pass
 
     def _getInitialTheta(self):
@@ -21,12 +24,11 @@ class MazeLearner:
         pass
 
     def _getFeatureExpectation(self, S, N):
-        S = repeat(S, N, axis=0)
-        A = self.policy.evaluate(S)
+        S, A = self.policy.sampleActions(S, N)
 
-        PHI_SA = self.rbf.getStateActionFeatureMatrix(c_[S, A])
+        PHI_SA = self.rbf.getStateActionFeatureMatrix(S, A)
         # mean over each N rows
-        return PHI_SA.reshape(-1, N, S.shape[1] + A.shape[1]).mean(1)
+        return asarray(PHI_SA).reshape(-1, N, PHI_SA.shape[1]).mean(1)
 
     def learn(self):
         MuSA, MuS = self._getMu()
@@ -35,7 +37,7 @@ class MazeLearner:
 
         lstd = LeastSquaresTD()
         reps = AC_REPS()
-        self.policy = GPPolicy()
+        self.policy = SparseGPPolicy(self._getKernel())
 
         samplingIterations = 100
         learningIterations = 10
@@ -59,4 +61,5 @@ class MazeLearner:
                 PHI_S = self.rbf.getStateFeatureMatrix(S)
                 w = reps.computeWeighting(Q, PHI_S)
 
-                # GP ...
+                # GP
+                self.policy.train(S, A, w)

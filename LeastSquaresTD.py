@@ -1,7 +1,6 @@
 from numpy import eye, asmatrix
 from numpy.linalg import solve
 
-
 class LeastSquaresTD:
     discountFactor = 0.98
     lstdRegularizationFactor = 1e-8
@@ -15,6 +14,6 @@ class LeastSquaresTD:
         regMat2 = eye(phi.shape[1]) * self.lstdProjectionRegularizationFactor
 
         projector = solve(phi.T * phi + regMat2, phi.T * phi_)
-        M = (phi - self.discountFactor * phi * projector)
+        M = phi - self.discountFactor * phi * projector
 
         return solve(M.T * M + regMat1, M.T * reward)

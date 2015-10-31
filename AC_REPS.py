@@ -1,8 +1,9 @@
-from numpy import asmatrix, zeros, std, ones_like, ones, log, asarray, Inf, \
-        isnan, isinf, abs, random, r_, c_, nansum, zeros_like, finfo, double, \
-        exp, matrix, minimum, maximum, squeeze, multiply as mul
+from numpy import asmatrix, zeros, std, ones, log, asarray, Inf, \
+        isnan, isinf, abs, random, r_, c_, nansum, finfo, double, \
+        matrix, minimum, maximum, multiply as mul
 from numexpr import evaluate as ev
 from scipy.optimize import minimize
+
 
 class AC_REPS:
     epsilonAction = 0.5
@@ -50,13 +51,13 @@ class AC_REPS:
 
         # gradient
         gDEta = epsilon + log(gLogPart) - \
-                mul(expAdvantage, QNorm - V).sum() / (eta * sumExpAdvantage)
+            mul(expAdvantage, QNorm - V).sum() / (eta * sumExpAdvantage)
         if (-eta * sumExpAdvantage) == 0:
             gDEta = 1e100
         gD[-1] = gDEta
 
         gDTheta = self.PHI_HAT + mul(-self.PHI_S, expAdvantage).sum(0) / \
-                sumExpAdvantage + 2 * self.alphaL2ThetaPunishment * theta.T
+            sumExpAdvantage + 2 * self.alphaL2ThetaPunishment * theta.T
         gD[0:self.numFeatures] = gDTheta
 
         return g, 0.5 * gD
@@ -81,7 +82,6 @@ class AC_REPS:
             gDNumeric[i] = (g2 - g1) / (stepSize[i] * 2)
 
         return gD, gDNumeric
-
 
     def _computeWeightingFromThetaAndEta(self, theta, eta):
         advantage = self.Q - self.PHI_S * theta
@@ -110,9 +110,9 @@ class AC_REPS:
         res = minimize(self._dualFunction, startParams, method='L-BFGS-B',
                 bounds=bounds, jac=True,
                 options={'maxiter': self.maxIter,
-                         'gtol': self.toleranceG,
-                         'ftol': self.toleranceF,
-                         'disp': True})
+                     'gtol': self.toleranceG,
+                     'ftol': self.toleranceF,
+                     'disp': True})
 
         return asmatrix(res.x[0:self.numFeatures]).T, res.x[-1]
 

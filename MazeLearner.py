@@ -1,10 +1,11 @@
-from numpy import c_, repeat
+from numpy import asarray
 
 from LeastSquaresTD import LeastSquaresTD
 from FeatureFunction import RBFFeatureFunction
 from AC_REPS import AC_REPS
 from Kernel import ExponentialQuadraticKernel
 from SparseGPPolicy import SparseGPPolicy
+
 
 class MazeLearner:
     def _getMu(self):
@@ -24,11 +25,11 @@ class MazeLearner:
         pass
 
     def _getFeatureExpectation(self, S, N):
-        S, A = self.policy.sampleActions(S, N)
+        Srep, Arep = self.policy.sampleActions(S, N)
+        PHI_SA_rep = self.rbf.getStateActionFeatureMatrix(Srep, Arep)
 
-        PHI_SA = self.rbf.getStateActionFeatureMatrix(S, A)
         # mean over each N rows
-        return asarray(PHI_SA).reshape(-1, N, PHI_SA.shape[1]).mean(1)
+        return asarray(PHI_SA_rep).reshape(-1, N, PHI_SA_rep.shape[1]).mean(1)
 
     def learn(self):
         MuSA, MuS = self._getMu()

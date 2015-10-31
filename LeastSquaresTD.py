@@ -1,6 +1,7 @@
 from numpy import eye, asmatrix
 from numpy.linalg import solve
 
+
 class LeastSquaresTD:
     discountFactor = 0.98
     lstdRegularizationFactor = 1e-8

@@ -1,7 +1,8 @@
 from numpy import eye, zeros_like, random, dot, zeros, sqrt, c_, repeat, \
-        square, diag, multiply as mul
+        square, diag, newaxis, tile, multiply as mul
 from numpy.linalg import lstsq, solve
 from scipy.linalg import LinAlgError, cholesky as chol
+
 
 class SparseGPPolicy:
     numSamplesSubset = 100
@@ -30,7 +31,7 @@ class SparseGPPolicy:
 
         # kernel matrix on subset of samples
         K = self.GPPriorVariance * \
-                self.kernel.getGramMatrix(self.Ssub, self.Ssub)
+            self.kernel.getGramMatrix(self.Ssub, self.Ssub)
 
         w /= w.max()
 
@@ -48,9 +49,9 @@ class SparseGPPolicy:
             assert counter < 100, "SparseGPPolicy: chol failed"
 
         kernelVectors = self.GPPriorVariance * \
-                self.kernel.getGramMatrix(self.Ssub, S).T
+            self.kernel.getGramMatrix(self.Ssub, S).T
         featureVectors = lstsq(self.cholKy,
-                lstsq(self.cholKy.T, kernelVectors.T)[0])[0].T
+            lstsq(self.cholKy.T, kernelVectors.T)[0])[0].T
         featureVectorsW = mul(featureVectors, w)
 
         X = dot(featureVectorsW.T, featureVectors)
@@ -67,7 +68,9 @@ class SparseGPPolicy:
 
     def sampleActions(self, S, N):
         if not self.trained:
-            return repeat(S, N, axis=0), zeros((N * S.shape[0], 1))
+            pass  # TODO
+
+        actionDim = self.alpha.shape[1]
 
         kVec = self.GPPriorVariance * self.kernel.getGramMatrix(self.Ssub, S).T
         meanGP = dot(kVec, self.alpha)
@@ -79,7 +82,7 @@ class SparseGPPolicy:
         kernelSelf = self.GPPriorVariance * self.kernel.getGramDiag(S)
         sigmaGP = kernelSelf.squeeze() - sigmaGP.squeeze()
         sigmaGP[sigmaGP < 0] = 0
-        sigmaGP = sqrt(sigmaGP)
+        sigmaGP = tile(sqrt(sigmaGP)[:, newaxis], (1, actionDim))
 
         if self.UseGPBug:
             sigmaGP += sqrt(self.GPRegularizer)
@@ -90,9 +93,9 @@ class SparseGPPolicy:
         # generate N action samples for each state in S
         Srep = repeat(S, N, axis=0)
         meanGPrep = repeat(meanGP, N, axis=0)
-        sigma2GPrep = square(repeat(sigmaGP, N, axis=0))
+        sigmaGPrep = repeat(sigmaGP, N, axis=0)
 
-        # TODO memory error
-        A = random.multivariate_normal(meanGPrep.squeeze(), diag(sigma2GPrep))
+        N = random.normal(0.0, 1.0, (Srep.shape[0], actionDim))
+        A = mul(N, sigmaGPrep) + meanGPrep
 
         return Srep, A

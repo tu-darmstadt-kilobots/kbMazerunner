@@ -1,6 +1,7 @@
 from numpy import asmatrix, square, diagflat, sqrt, pi, ones, multiply as mul
 from numexpr import evaluate as ev
 
+
 class Kernel:
     """
         A: m1 x d
@@ -13,6 +14,7 @@ class Kernel:
 
     def getGramDiag(self, A):
         raise NotImplementedError("getGramDiag() not implemented")
+
 
 class ExponentialQuadraticKernel(Kernel):
     normalize = False

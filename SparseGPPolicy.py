@@ -1,5 +1,5 @@
-from numpy import eye, zeros_like, random, dot, zeros, sqrt, c_, repeat, \
-        square, diag, newaxis, tile, multiply as mul
+from numpy import eye, random, dot, sqrt, repeat, \
+        square, diag, newaxis, tile, empty, multiply as mul
 from numpy.linalg import lstsq, solve
 from scipy.linalg import LinAlgError, cholesky as chol
 
@@ -16,14 +16,29 @@ class SparseGPPolicy:
 
     trained = False
 
-    def __init__(self, kernel):
+    """
+        aRange: d x 2, d: number of action dimensions
+            aRange[i, :] = [l, h] -> A[:, i] in [l, h] when not trained
+    """
+    def __init__(self, kernel, aRange):
         self.kernel = kernel
+        self.aRange = aRange
 
     def _getRandomStateSubset(self, S):
         N = min(self.numSamplesSubset, S.shape[0])
 
         idx = random.choice(S.shape[0], size=N, replace=False)
         return S[idx, :]
+
+    def _getRandomActions(self, numSamples, numRepetitions):
+        ar = self.aRange
+
+        A = empty((numSamples * numRepetitions, ar.shape[0]))
+
+        for i in range(ar.shape[0]):
+            A[:, i] = random.uniform(ar[i, 0], ar[i, 1], (A.shape[0],))
+
+        return A
 
     def train(self, S, A, w):
         # choose random subset of state samples
@@ -63,12 +78,15 @@ class SparseGPPolicy:
         self.trained = True
 
     def evaluate(self, S):
+        if not self.trained:
+            return self._getRandomActions(S.shape[0], 1)
+
         kVec = self.GPPriorVariance * self.kernel.getGramMatrix(self.Ssub, S).T
         return dot(kVec, self.alpha)
 
     def sampleActions(self, S, N):
         if not self.trained:
-            pass  # TODO
+            return self._getRandomActions(S.shape[0], N)
 
         actionDim = self.alpha.shape[1]
 

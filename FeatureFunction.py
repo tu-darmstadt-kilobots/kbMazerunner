@@ -10,10 +10,10 @@ class FeatureFunction:
         return m x k feature matrix, where k is the feature vector dimension
     """
     def getStateActionFeatureMatrix(self, S, A):
-        raise NotImplementedError("getStateActionFeatureMatrix not implemented")
+        raise NotImplementedError('getStateActionFeatureMatrix not implemented')
 
     def getStateFeatureMatrix(self, S):
-        raise NotImplementedError("getStateFeatureMatrix not implemented")
+        raise NotImplementedError('getStateFeatureMatrix not implemented')
 
 
 class RBFFeatureFunction(FeatureFunction):
@@ -38,7 +38,7 @@ class RBFFeatureFunction(FeatureFunction):
         C = XQ * Mu.T
         s = sqrt(bw2.prod() * (2 * pi) ** (bw2.size))
 
-        return asmatrix(ev("exp(-0.5 * (B - 2 * C)) / s"))
+        return asmatrix(ev('exp(-0.5 * (B - 2 * C)) / s'))
 
     def getStateActionFeatureMatrix(self, S, A):
         return self._computeFeatureMatrix(c_[S, A], self.MuSA, self.bw2SA)

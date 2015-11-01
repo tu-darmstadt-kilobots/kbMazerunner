@@ -6,15 +6,13 @@ from scipy.optimize import minimize
 
 
 class AC_REPS:
-    epsilonAction = 0.5
-    alphaL2ThetaPunishment = 0.0
-
-    maxIter = 300
-    toleranceG = 1e-8
-    toleranceF = 1e-12
-
     def __init__(self):
-        pass
+        self.epsilonAction = 0.5
+        self.alphaL2ThetaPunishment = 0.0
+
+        self.maxIter = 300
+        self.toleranceG = 1e-8
+        self.toleranceF = 1e-12
 
     def _dualFunction(self, params):
         theta = asmatrix(params[0:self.numFeatures]).T
@@ -37,7 +35,7 @@ class AC_REPS:
             gD[-2] = -1
             return g, gD
 
-        expAdvantage = ev("exp(advantage)")
+        expAdvantage = ev('exp(advantage)')
         sumExpAdvantage = expAdvantage.sum()
 
         realmin = finfo(double).tiny
@@ -87,7 +85,7 @@ class AC_REPS:
         advantage = self.Q - self.PHI_S * theta
         maxAdvantage = max(advantage)
 
-        w = ev("exp((advantage - maxAdvantage) / eta)")
+        w = ev('exp((advantage - maxAdvantage) / eta)')
         return w / w.sum()
 
     def _getKLDivergence(self, weighting):
@@ -105,7 +103,7 @@ class AC_REPS:
         # test gradient
         if False:
             gD, gDNumeric = self._numericDualFunctionGradient(startParams)
-            print("Gradient error: {:f}".format(abs(gD - gDNumeric).max()))
+            print('Gradient error: {:f}'.format(abs(gD - gDNumeric).max()))
 
         res = minimize(self._dualFunction, startParams, method='L-BFGS-B',
                 bounds=bounds, jac=True,

@@ -3,9 +3,10 @@ from numpy.linalg import solve
 
 
 class LeastSquaresTD:
-    discountFactor = 0.98
-    lstdRegularizationFactor = 1e-8
-    lstdProjectionRegularizationFactor = 1e-6
+    def __init(self):
+        self.discountFactor = 0.98
+        self.lstdRegularizationFactor = 1e-8
+        self.lstdProjectionRegularizationFactor = 1e-6
 
     def learnLSTD(self, stateActionFeatures, nextStateActionFeatures, reward):
         phi = asmatrix(stateActionFeatures)

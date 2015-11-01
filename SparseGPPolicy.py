@@ -1,28 +1,57 @@
 from numpy import eye, random, dot, sqrt, repeat, \
-        square, diag, newaxis, tile, empty, multiply as mul
+        square, newaxis, tile, empty, multiply as mul
 from numpy.linalg import lstsq, solve
 from scipy.linalg import LinAlgError, cholesky as chol
+import pickle
 
 
 class SparseGPPolicy:
-    numSamplesSubset = 100
-
-    GPPriorVariance = 0.1
-    GPRegularizer = 1e-6
-    SparseGPInducingOutputRegularization = 1e-6
-
-    GPMinVariance = 0.0
-    UseGPBug = False
-
-    trained = False
-
     """
         aRange: d x 2, d: number of action dimensions
             aRange[i, :] = [l, h] -> A[:, i] in [l, h] when not trained
     """
     def __init__(self, kernel, aRange):
+        self.numSamplesSubset = 100
+
+        self.GPPriorVariance = 0.1
+        self.GPRegularizer = 1e-6
+        self.SparseGPInducingOutputRegularization = 1e-6
+
+        self.GPMinVariance = 0.0
+        self.UseGPBug = False
+
+        self.trained = False
+
         self.kernel = kernel
         self.aRange = aRange
+
+    """
+        returns a dict, which can be serialized with json.dumps
+        NOTE: need to import Kernel to be able to use this
+    """
+    def getSerializableDict(self):
+        d = self.__dict__.copy()
+        d['kernel'] = self.kernel.getSerializableDict()
+        d['aRange'] = pickle.dumps(self.aRange, protocol=2)
+        if self.trained:
+            d['Ssub'] = pickle.dumps(self.Ssub, protocol=2)
+            d['alpha'] = pickle.dumps(self.alpha, protocol=2)
+            d['cholKy'] = pickle.dumps(self.cholKy, protocol=2)
+
+        return d
+
+    @staticmethod
+    def fromSerializableDict(d):
+        d['kernel'] = Kernel.fromSerializableDict(d['kernel'])
+        d['aRange'] = pickle.loads(d['aRange'])
+        if d['trained']:
+            d['Ssub'] = pickle.loads(d['Ssub'])
+            d['alpha'] = pickle.loads(d['alpha'])
+            d['cholKy'] = pickle.loads(d['cholKy'])
+        obj = SparseGPPolicy(d['kernel'], d['aRange'])
+        obj.__dict__ = d
+
+        return obj
 
     def _getRandomStateSubset(self, S):
         N = min(self.numSamplesSubset, S.shape[0])
@@ -61,7 +90,7 @@ class SparseGPPolicy:
                 GPRegularizerEffective *= 2
 
             counter += 1
-            assert counter < 100, "SparseGPPolicy: chol failed"
+            assert counter < 100, 'SparseGPPolicy: chol failed'
 
         kernelVectors = self.GPPriorVariance * \
             self.kernel.getGramMatrix(self.Ssub, S).T

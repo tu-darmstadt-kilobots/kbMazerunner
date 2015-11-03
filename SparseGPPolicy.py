@@ -2,8 +2,16 @@ from numpy import eye, random, dot, sqrt, repeat, \
         square, newaxis, tile, empty, multiply as mul
 from numpy.linalg import lstsq, solve
 from scipy.linalg import LinAlgError, cholesky as chol
+import Kernel
 import pickle
 
+
+"""
+    The Simulator can use this method to create the policy without knowing
+    its class name.
+"""
+def fromSerializableDict(d):
+    return SparseGPPolicy.fromSerializableDict(d)
 
 class SparseGPPolicy:
     """
@@ -37,12 +45,11 @@ class SparseGPPolicy:
             d['Ssub'] = pickle.dumps(self.Ssub, protocol=2)
             d['alpha'] = pickle.dumps(self.alpha, protocol=2)
             d['cholKy'] = pickle.dumps(self.cholKy, protocol=2)
-
         return d
 
     @staticmethod
     def fromSerializableDict(d):
-        d['kernel'] = Kernel.fromSerializableDict(d['kernel'])
+        d['kernel'] = Kernel.Kernel.fromSerializableDict(d['kernel'])
         d['aRange'] = pickle.loads(d['aRange'])
         if d['trained']:
             d['Ssub'] = pickle.loads(d['Ssub'])
@@ -50,7 +57,6 @@ class SparseGPPolicy:
             d['cholKy'] = pickle.loads(d['cholKy'])
         obj = SparseGPPolicy(d['kernel'], d['aRange'])
         obj.__dict__ = d
-
         return obj
 
     def _getRandomStateSubset(self, S):
@@ -108,14 +114,17 @@ class SparseGPPolicy:
 
     def evaluate(self, S):
         if not self.trained:
-            return self._getRandomActions(S.shape[0], 1)
+            if len(S.shape) == 1:
+                return self._getRandomActions(1, 1)
+            else:
+                return self._getRandomActions(S.shape[0], 1)
 
         kVec = self.GPPriorVariance * self.kernel.getGramMatrix(self.Ssub, S).T
         return dot(kVec, self.alpha)
 
     def sampleActions(self, S, N):
         if not self.trained:
-            return self._getRandomActions(S.shape[0], N)
+            return repeat(S, N, axis=0), self._getRandomActions(S.shape[0], N)
 
         actionDim = self.alpha.shape[1]
 

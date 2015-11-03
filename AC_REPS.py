@@ -110,7 +110,7 @@ class AC_REPS:
                 options={'maxiter': self.maxIter,
                      'gtol': self.toleranceG,
                      'ftol': self.toleranceF,
-                     'disp': True})
+                     'disp': False})
 
         return asmatrix(res.x[0:self.numFeatures]).T, res.x[-1]
 

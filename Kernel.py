@@ -14,7 +14,7 @@ class Kernel:
     """
         loads data from dict created using getSerializableDict
     """
-    @classmethod
+    @staticmethod
     def fromSerializableDict(d):
         if d['type'] == 'ExpQuad':
             return ExponentialQuadraticKernel.fromSerializableDict(d)
@@ -44,10 +44,12 @@ class ExponentialQuadraticKernel(Kernel):
         d['bw2'] = pickle.dumps(self.bw2, protocol=2)
         return d
 
-    @classmethod
+    @staticmethod
     def fromSerializableDict(d):
-        pass
-
+        obj = ExponentialQuadraticKernel(array([]))
+        d['bw2'] = pickle.loads(d['bw2'])
+        obj.__dict__ = d
+        return obj
 
     def getGramMatrix(self, A, B):
         Q = asmatrix(diagflat(1.0 / self.bw2))

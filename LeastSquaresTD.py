@@ -1,5 +1,5 @@
-from numpy import eye, asmatrix
-from numpy.linalg import solve
+from numpy import eye, asmatrix, r_, multiply as mul
+from numpy.linalg import solve, inv
 
 
 class LeastSquaresTD:
@@ -12,10 +12,13 @@ class LeastSquaresTD:
         phi = asmatrix(stateActionFeatures)
         phi_ = asmatrix(nextStateActionFeatures)
 
-        regMat1 = eye(phi.shape[1]) * self.lstdRegularizationFactor
-        regMat2 = eye(phi.shape[1]) * self.lstdProjectionRegularizationFactor
+        A_ = phi.T * (phi - self.discountFactor * phi_)
+        b_ = mul(phi, reward).sum(0).T
 
-        projector = solve(phi.T * phi + regMat2, phi.T * phi_)
-        M = phi - self.discountFactor * phi * projector
+        n = phi.shape[1]
+        C = phi * inv(phi.T * phi + self.lstdRegularizationFactor * eye(n))
+        X = C * (A_ + self.lstdRegularizationFactor * eye(n))
+        y = C * b_
 
-        return solve(M.T * M + regMat1, M.T * asmatrix(reward.squeeze()).T)
+        return solve(X.T * X + self.lstdProjectionRegularizationFactor * eye(n),
+                X.T * y)

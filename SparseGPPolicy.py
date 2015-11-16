@@ -1,9 +1,11 @@
-from numpy import eye, random, dot, sqrt, repeat, \
-        square, newaxis, tile, empty, multiply as mul
+from numpy import eye, random, dot, sqrt, repeat, array, \
+        square, newaxis, tile, empty, r_, multiply as mul
 from numpy.linalg import lstsq, solve
 from scipy.linalg import LinAlgError, cholesky as chol
 import Kernel
 import pickle
+
+from Helper import Helper
 
 
 """
@@ -19,7 +21,8 @@ class SparseGPPolicy:
             aRange[i, :] = [l, h] -> A[:, i] in [l, h] when not trained
     """
     def __init__(self, kernel, aRange):
-        self.numSamplesSubset = 100
+        self.numSamplesSubset = 500
+        self.bwFactor = 2.0
 
         self.GPPriorVariance = 0.1
         self.GPRegularizer = 1e-6
@@ -34,8 +37,7 @@ class SparseGPPolicy:
         self.aRange = aRange
 
     """
-        returns a dict, which can be serialized with json.dumps
-        NOTE: need to import Kernel to be able to use this
+        returns a dict which can be serialized with pickle.dumps
     """
     def getSerializableDict(self):
         d = self.__dict__.copy()
@@ -59,17 +61,10 @@ class SparseGPPolicy:
         obj.__dict__ = d
         return obj
 
-    def _getRandomStateSubset(self, S):
-        N = min(self.numSamplesSubset, S.shape[0])
-
-        idx = random.choice(S.shape[0], size=N, replace=False)
-        return S[idx, :]
-
     def _getRandomActions(self, numSamples, numRepetitions):
         ar = self.aRange
 
         A = empty((numSamples * numRepetitions, ar.shape[0]))
-
         for i in range(ar.shape[0]):
             A[:, i] = random.uniform(ar[i, 0], ar[i, 1], (A.shape[0],))
 
@@ -77,7 +72,12 @@ class SparseGPPolicy:
 
     def train(self, S, A, w):
         # choose random subset of state samples
-        self.Ssub = self._getRandomStateSubset(S)
+        Nsubset = min(self.numSamplesSubset, S.shape[0])
+        self.Ssub = Helper.getRepresentativeRows(S, Nsubset)
+
+        # set kernel bandwidth
+        self.kernel.setBandwidth(Helper.getBandwidth(self.Ssub,
+            self.numSamplesSubset, self.bwFactor))
 
         # kernel matrix on subset of samples
         K = self.GPPriorVariance * \

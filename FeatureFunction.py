@@ -36,9 +36,8 @@ class RBFFeatureFunction(FeatureFunction):
 
         B = mul(XQ, X).sum(1) + mul(MuQ, Mu).sum(1).T
         C = XQ * Mu.T
-        s = sqrt(bw2.prod() * (2 * pi) ** (bw2.size))
 
-        return asmatrix(ev('exp(-0.5 * (B - 2 * C)) / s'))
+        return asmatrix(ev('exp(-0.5 * (B - 2 * C))'))
 
     def getStateActionFeatureMatrix(self, S, A):
         return self._computeFeatureMatrix(c_[S, A], self.MuSA, self.bw2SA)

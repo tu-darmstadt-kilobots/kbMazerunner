@@ -33,9 +33,12 @@ class Kernel:
 
 
 class ExponentialQuadraticKernel(Kernel):
-    def __init__(self, bw):
+    def __init__(self, dim):
         self.normalize = False
 
+        self.setBandwidth(ones((1, dim)))
+
+    def setBandwidth(self, bw):
         self.bw2 = square(bw)
 
     def getSerializableDict(self):
@@ -46,7 +49,7 @@ class ExponentialQuadraticKernel(Kernel):
 
     @staticmethod
     def fromSerializableDict(d):
-        obj = ExponentialQuadraticKernel(array([]))
+        obj = ExponentialQuadraticKernel(1)
         d['bw2'] = pickle.loads(d['bw2'])
         obj.__dict__ = d
         return obj

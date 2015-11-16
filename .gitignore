@@ -1,1 +1,7 @@
 __pycache__
+*.pyc
+
+# these files are automatically copied to the test directory while learning
+test/Helper.py
+test/Kernel.py
+test/SparseGPPolicy.py

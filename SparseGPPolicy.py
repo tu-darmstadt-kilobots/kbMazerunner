@@ -1,7 +1,8 @@
 from numpy import eye, random, dot, sqrt, repeat, array, \
-        square, newaxis, tile, empty, r_, multiply as mul
+        square, newaxis, tile, empty, r_, matrix, multiply as mul
 from numpy.linalg import lstsq, solve
 from scipy.linalg import LinAlgError, cholesky as chol
+
 import Kernel
 import pickle
 
@@ -25,7 +26,7 @@ class SparseGPPolicy:
         self.bwFactor = 2.0
 
         self.GPPriorVariance = 0.1
-        self.GPRegularizer = 1e-6
+        self.GPRegularizer = 1e-6 # TODO toolbox / NLopt
         self.SparseGPInducingOutputRegularization = 1e-6
 
         self.GPMinVariance = 0.0
@@ -112,7 +113,7 @@ class SparseGPPolicy:
 
         self.trained = True
 
-    def evaluate(self, S):
+    def getMeanAction(self, S):
         if not self.trained:
             if len(S.shape) == 1:
                 return self._getRandomActions(1, 1)
@@ -137,6 +138,10 @@ class SparseGPPolicy:
 
         kernelSelf = self.GPPriorVariance * self.kernel.getGramDiag(S)
         sigmaGP = kernelSelf.squeeze() - sigmaGP.squeeze()
+
+        if sigmaGP.shape == (): # single number
+            sigmaGP = matrix([sigmaGP])
+
         sigmaGP[sigmaGP < 0] = 0
         sigmaGP = tile(sqrt(sigmaGP)[:, newaxis], (1, actionDim))
 

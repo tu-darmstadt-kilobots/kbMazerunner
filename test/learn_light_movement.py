@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 
+import signal
+import sys
+
 from numpy import array, asarray, zeros, c_, r_, repeat, sqrt, median, \
-        newaxis, square, transpose, random, linspace, meshgrid
+        newaxis, square, transpose, random, linspace, meshgrid, empty, asmatrix
+from numpy.linalg import norm
 
 import matplotlib.pyplot as plt
 
@@ -54,10 +58,10 @@ class LightMovementLearner:
         else:
             return msg['samples']
 
-    def _updateParameters(self, S, A):
-        MuSA = Helper.getRepresentativeRows(c_[S, A], 500)
+    def _updateRBFParameters(self):
+        MuSA = Helper.getRepresentativeRows(c_[self.S, self.A], 500)
 
-        MuS = Helper.getRepresentativeRows(S, 500)
+        MuS = Helper.getRepresentativeRows(self.S, 500)
 
         bwSA = Helper.getBandwidth(MuSA, 500, 2.5)
         bwS = Helper.getBandwidth(MuS, 500, 1.5)
@@ -70,51 +74,62 @@ class LightMovementLearner:
         self._sendPolicyModules()
 
     def learn(self):
-        S, A, R, S_ = self._getSamples()
-        print('sum reward: {}'.format(R.sum()))
+        # LSTD
+        self.lstd.discountFactor = 0.9
 
-        self._updateParameters(S, A)
+        # GP
+        self.policy.GPRegularizer = 1e-8
 
-        for i in range(20):
-            # DEBUG
-            self.plotPolicyState2D(50, 25)
+        # REPS
+        self.reps.epsilonAction = 1.0
 
-            PHI_SA = self.rbf.getStateActionFeatureMatrix(S, A)
-            PHI_S = self.rbf.getStateFeatureMatrix(S)
+        self.S, self.A, self.R, self.S_ = empty((0, 2)), empty((0, 2)),\
+                empty((0, 1)), empty((0, 2))
+
+        it = 0
+        while True:
+            # get new samples
+            St, At, Rt, S_t = self._getSamples()
+            print('sum reward for last samples: {}'.format(Rt.sum()))
+
+            # add samples
+            self.S = r_[self.S, St]
+            self.A = r_[self.A, At]
+            self.R = r_[self.R, Rt]
+            self.S_ = r_[self.S_, S_t]
+
+            self._updateRBFParameters()
+
+            self.PHI_SA = self.rbf.getStateActionFeatureMatrix(self.S, self.A)
+            self.PHI_S = self.rbf.getStateFeatureMatrix(self.S)
 
             # LSTD to estimate Q function / Q(s,a) = phi(s, a).T * theta
-            PHI_SA_ = Helper.getFeatureExpectation(S_, 20, self.policy, self.rbf)
-            theta = self.lstd.learnLSTD(PHI_SA, PHI_SA_, R)
+            self.PHI_SA_ = Helper.getFeatureExpectation(self.S_, 5,
+                    self.policy, self.rbf)
+            self.theta = self.lstd.learnLSTD(self.PHI_SA, self.PHI_SA_, self.R)
 
             # AC-REPS
-            Q = PHI_SA * theta
-            w = self.reps.computeWeighting(Q, PHI_S)
+            self.Q = self.PHI_SA * self.theta
+            self.w = self.reps.computeWeighting(self.Q, self.PHI_S)
 
             # GP
-            self.policy.train(S, A, w)
+            self.policy.train(self.S, self.A, self.w)
+            it += 1
 
-            St, At, Rt, S_t = self._getSamples()
-            print('sum reward: {}'.format(Rt.sum()))
+            # plot current policy based on best (mean) action
+            self.plotPolicyState2D(50, 25, it)
 
-            S = r_[S, St]
-            A = r_[A, At]
-            R = r_[R, Rt]
-            S_ = r_[S_, S_t]
-
-            self._updateParameters(S, A)
-
-    def plotPolicyState2D(self, stepsX, stepsY):
+    def plotPolicyState2D(self, stepsX, stepsY, it):
         [X, Y] = meshgrid(linspace(0.0, 2.0, stepsX), linspace(0.0, 1.0, stepsY))
         X = X.flatten()
         Y = Y.flatten()
-        A = asarray(self.policy.evaluate(c_[X, Y]))
+        A = asarray(self.policy.getMeanAction(c_[X, Y]))
         U = A[:, 0]
         V = A[:, 1]
 
         plt.quiver(X, Y, U, V)
+        plt.title('iteration: {}'.format(it))
         plt.show()
 
-if __name__ == '__main__':
-    learner = LightMovementLearner(2357)
-    learner.connect()
-    learner.learn()
+learner = LightMovementLearner(2357)
+learner.connect()

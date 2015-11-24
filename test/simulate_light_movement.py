@@ -4,8 +4,6 @@
     Only the light moves without any collisions.
     Allows communication with the learner to send samples.
     The light is moved based on a policy provided by the learner.
-
-    NOTE: For now needs to be started before the learner to work correctly.
 """
 
 import pygame
@@ -61,7 +59,7 @@ class LightMovementSimulator:
                 print('got unexpected message')
 
     def _generateSamples(self):
-        numEpisodes = 40
+        numEpisodes = 500
         numStepsPerEpisode = 40
 
         numSamples = numEpisodes * numStepsPerEpisode
@@ -69,18 +67,18 @@ class LightMovementSimulator:
         goal = np.matrix([1.0, 0.5]) # center of the screen (screen is 2 x 1)
         thresh = 0.1 # m
 
-        stepsPerSec = 60
+        stepsPerSec = 32
 
         # s: light pos (x, y)
         # a: light movement (dx, dy)
-        # r: dist(goal, s) <= thres ? 1 : 0
+        # r: dist(goal, s) <= thres ? 1 : 0 or -dist(goal, s)
         S = asmatrix(empty((numSamples, 2)))
         A = asmatrix(empty((numSamples, 2)))
         R = asmatrix(empty((numSamples, 1)))
         S_ = asmatrix(empty((numSamples, 2)))
 
         for ep in range(numEpisodes):
-            # start position
+            # random
             x = random.random() * 2.0 # in [0, 2]
             y = random.random() * 1.0 # in [0, 1]
 
@@ -92,9 +90,9 @@ class LightMovementSimulator:
                 for event in pygame.event.get():
                     if event.type == KEYDOWN:
                         if event.key == K_PLUS:
-                            stepsPerSec += 5
+                            stepsPerSec *= 2
                         elif event.key == K_MINUS:
-                            stepsPerSec = np.max([1, stepsPerSec - 5])
+                            stepsPerSec = np.max([1, stepsPerSec / 2])
 
                 # draw labyrinth
                 self.screen.fill((0, 0, 0, 0))
@@ -102,7 +100,8 @@ class LightMovementSimulator:
                 # draw goal
                 gx = int(self.HEIGHT * goal[0, 0])
                 gy = int(self.HEIGHT * (1.0 - goal[0, 1]))
-                gfxdraw.aacircle(self.screen, gx, gy, 5, (0, 255, 0, 255))
+                gr = int(self.HEIGHT * thresh)
+                gfxdraw.aacircle(self.screen, gx, gy, gr, (0, 255, 0, 255))
 
                 # draw light
                 lx = int(self.HEIGHT * s[0, 0])
@@ -119,7 +118,7 @@ class LightMovementSimulator:
 
                 """ simulation """
                 # choose action
-                a = self.policy.evaluate(s)
+                a = self.policy.sampleActions(s, 1)[1]
 
                 # take action
                 s_ = s + a
@@ -128,11 +127,12 @@ class LightMovementSimulator:
                 s_[0, 0] = np.max([0.0, np.min([2.0, s_[0, 0]])])
                 s_[0, 1] = np.max([0.0, np.min([1.0, s_[0, 1]])])
 
-                # get reward
+                # binary reward
                 #r = 0
                 #if linalg.norm(goal - s) <= thresh:
                 #    r = 1
 
+                # continuous reward
                 r = -linalg.norm(goal - s)
 
                 # record sample

@@ -1,5 +1,5 @@
 from numpy import random, zeros, repeat, sqrt, median, newaxis, square, \
-        transpose, asarray
+        transpose, asarray, asmatrix, minimum
 from scipy.spatial.distance import cdist
 
 
@@ -27,8 +27,12 @@ class Helper:
         N = min(N, X.shape[0])
         Y = zeros((N, X.shape[1]))
 
-        for i in range(N):
-            Y[i, :] = X[cdist(X, Y).min(axis=1).argmax(), :]
+        Y[0, :] = X[random.randint(X.shape[0]), :]
+        D = cdist(X, asmatrix(Y[0, :]))
+
+        for i in range(1, N):
+            Y[i, :] = X[D.argmax(), :]
+            D = minimum(D, cdist(X, asmatrix(Y[i, :])))
 
         return Y
 

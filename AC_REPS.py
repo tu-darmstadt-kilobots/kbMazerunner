@@ -1,6 +1,6 @@
 from numpy import asmatrix, zeros, std, ones, log, asarray, Inf, \
         isnan, isinf, abs, random, r_, c_, nansum, finfo, double, \
-        matrix, minimum, maximum, multiply as mul
+        matrix, minimum, maximum, multiply as mul, errstate
 from numexpr import evaluate as ev
 from scipy.optimize import minimize
 
@@ -48,10 +48,11 @@ class AC_REPS:
         g += eta * epsilon + self.alphaL2ThetaPunishment * (theta.T * theta)
 
         # gradient
-        gDEta = epsilon + log(gLogPart) - \
-            mul(expAdvantage, QNorm - V).sum() / (eta * sumExpAdvantage)
-        if (-eta * sumExpAdvantage) == 0:
+        if (eta * sumExpAdvantage) == 0:
             gDEta = 1e100
+        else:
+            gDEta = epsilon + log(gLogPart) - \
+                    mul(expAdvantage, QNorm - V).sum() / (eta * sumExpAdvantage)
         gD[-1] = gDEta
 
         gDTheta = self.PHI_HAT + mul(-self.PHI_S, expAdvantage).sum(0) / \

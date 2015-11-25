@@ -1,4 +1,4 @@
-from numpy import asmatrix, square, diagflat, sqrt, pi, c_, multiply as mul
+from numpy import asmatrix, square, diagflat, sqrt, pi, c_, exp, multiply as mul
 from numexpr import evaluate as ev
 
 
@@ -37,6 +37,7 @@ class RBFFeatureFunction(FeatureFunction):
         B = mul(XQ, X).sum(1) + mul(MuQ, Mu).sum(1).T
         C = XQ * Mu.T
 
+        # TODO needs too much memory
         return asmatrix(ev('exp(-0.5 * (B - 2 * C))'))
 
     def getStateActionFeatureMatrix(self, S, A):

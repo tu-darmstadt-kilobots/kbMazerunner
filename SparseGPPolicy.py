@@ -74,7 +74,9 @@ class SparseGPPolicy:
     def train(self, S, A, w):
         # choose random subset of state samples
         Nsubset = min(self.numSamplesSubset, S.shape[0])
-        self.Ssub = Helper.getRepresentativeRows(S, Nsubset)
+        #self.Ssub = Helper.getRepresentativeRows(S, Nsubset)
+
+        self.Ssub = Helper.getRandomSubset(S, Nsubset)
 
         # set kernel bandwidth
         self.kernel.setBandwidth(Helper.getBandwidth(self.Ssub,
@@ -102,7 +104,7 @@ class SparseGPPolicy:
         kernelVectors = self.GPPriorVariance * \
             self.kernel.getGramMatrix(self.Ssub, S).T
         featureVectors = lstsq(self.cholKy,
-            lstsq(self.cholKy.T, kernelVectors.T)[0])[0].T
+                lstsq(self.cholKy.T, kernelVectors.T)[0])[0].T # TODO: On entry to DLASD8 parameter number -1 had an illegal value
         featureVectorsW = mul(featureVectors, w)
 
         X = dot(featureVectorsW.T, featureVectors)

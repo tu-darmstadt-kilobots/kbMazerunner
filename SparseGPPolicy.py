@@ -1,6 +1,6 @@
 from numpy import eye, random, dot, sqrt, repeat, array, \
-        square, newaxis, tile, empty, r_, matrix, multiply as mul
-from numpy.linalg import lstsq, solve
+        square, newaxis, tile, empty, r_, matrix, abs, multiply as mul
+from numpy.linalg import lstsq, solve, pinv
 from scipy.linalg import LinAlgError, cholesky as chol
 
 import Kernel
@@ -103,8 +103,9 @@ class SparseGPPolicy:
 
         kernelVectors = self.GPPriorVariance * \
             self.kernel.getGramMatrix(self.Ssub, S).T
-        featureVectors = lstsq(self.cholKy,
-                lstsq(self.cholKy.T, kernelVectors.T)[0])[0].T # TODO: On entry to DLASD8 parameter number -1 had an illegal value
+        featureVectors = dot(dot(kernelVectors, pinv(self.cholKy)),
+                pinv(self.cholKy.T))
+
         featureVectorsW = mul(featureVectors, w)
 
         X = dot(featureVectorsW.T, featureVectors)

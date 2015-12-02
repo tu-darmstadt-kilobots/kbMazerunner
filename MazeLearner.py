@@ -71,8 +71,8 @@ class MazeLearner:
 
         MuS = Helper.getRepresentativeRows(self.S, 500)
 
-        bwSA = Helper.getBandwidth(MuSA, 500, 0.15) # 3.0 0.5
-        bwS = Helper.getBandwidth(MuS, 500, 0.15) # 2.5 0.5
+        bwSA = Helper.getBandwidth(MuSA, 500, 0.5) # 3.0 0.5
+        bwS = Helper.getBandwidth(MuS, 500, 0.5) # 2.5 0.5
 
         self.rbf = RBFFeatureFunction(MuSA, bwSA, MuS, bwS)
 
@@ -81,12 +81,24 @@ class MazeLearner:
 
         self._sendPolicyModules()
 
+    def savePolicy(self, fileName):
+        d = self.policy.getSerializableDict()
+        s = pickle.dumps(d)
+        with open(fileName, 'wb') as f:
+            f.write(s)
+
+    def loadPolicy(self, fileName):
+        with open(fileName, 'rb') as f:
+            s = f.read()
+        d = pickle.loads(s)
+        self.policy = SparseGPPolicy.fromSerializableDict(d)
+
     def learn(self, numIt, numLearnIt):
-        self.lstd.discountFactor = 0.9999
+        self.lstd.discountFactor = 0.95
 
         self.policy.GPMinVariance = 0.0
         self.policy.GPRegularizer = 0.005
-        self.policy.bwFactor = 0.15 # 2.5 0.5
+        self.policy.bwFactor = 0.5 # 2.5 0.5
 
         self.reps.epsilonAction = 0.5
 
@@ -101,6 +113,13 @@ class MazeLearner:
             self.R = r_[self.R, Rt]
             self.S_ = r_[self.S_, S_t]
 
+            SARS = Helper.getRepresentativeRows(c_[self.S, self.A, self.R, self.S_],
+                    20000)
+            self.S = SARS[:, 0:2]
+            self.A = SARS[:, 2:4]
+            self.R = SARS[:, 4:5]
+            self.S_ = SARS[:, 5:7]
+
             self._updateRBFParameters()
 
             self.PHI_SA = self.rbf.getStateActionFeatureMatrix(self.S, self.A)
@@ -108,7 +127,7 @@ class MazeLearner:
 
             for j in range(numLearnIt):
                 # LSTD to estimate Q function / Q(s,a) = phi(s, a).T * theta
-                self.PHI_SA_ = Helper.getFeatureExpectation(self.S_, 5,
+                self.PHI_SA_ = Helper.getFeatureExpectation(self.S_, 3,
                         self.policy, self.rbf)
                 self.theta = self.lstd.learnLSTD(self.PHI_SA, self.PHI_SA_, self.R)
 
@@ -136,7 +155,7 @@ class MazeLearner:
         Y = 1.0 - Y.flatten()
 
         Srep = repeat(c_[X, Y], N, axis=0)
-        Arep = 0.01 * random.random((X.size * N, 2)) # TODO
+        Arep = 0.05 * random.random((X.size * N, 2)) # TODO
         #Srep, Arep = self.policy.sampleActions(c_[X, Y], N)
 
         PHI_SA_rep = self.rbf.getStateActionFeatureMatrix(Srep, Arep)

@@ -116,10 +116,13 @@ class SparseGPPolicy:
 
         self.trained = True
 
+    def getRandomAction(self):
+        return self._getRandomActions(1, 1)
+
     def getMeanAction(self, S):
         if not self.trained:
             if len(S.shape) == 1:
-                return self._getRandomActions(1, 1)
+                return self.getRandomAction()
             else:
                 return self._getRandomActions(S.shape[0], 1)
 

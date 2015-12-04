@@ -71,10 +71,11 @@ class Helper:
     """
     @staticmethod
     def getFeatureExpectation(S, N, policy, featureFunc):
-        Srep, Arep = policy.sampleActions(S, N)
-        PHI_SA_rep = featureFunc.getStateActionFeatureMatrix(Srep, Arep)
+        PHI = featureFunc.getStateActionFeatureMatrix(S,
+                policy.sampleActions(S))
 
-        # mean over each N rows
-        return asarray(PHI_SA_rep).reshape(-1, N, PHI_SA_rep.shape[1]).mean(1)
+        for i in range(N - 1):
+            PHI += featureFunc.getStateActionFeatureMatrix(S,
+                    policy.sampleActions(S))
 
-
+        return PHI / N

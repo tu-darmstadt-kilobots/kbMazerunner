@@ -47,9 +47,10 @@ class MazeLearner:
                'policyModule': 'SparseGPPolicy'}
         self.socket.send(pickle.dumps(msg, protocol=2))
 
-    def _getSamples(self, useMean):
+    def _getSamples(self, epsilon, useMean):
         msg = {'message': 'getSamples',
                'policyDict': self.policy.getSerializableDict(),
+               'epsilon': epsilon,
                'useMean': useMean}
         self.socket.send(pickle.dumps(msg, protocol=2))
 
@@ -58,13 +59,6 @@ class MazeLearner:
             print('received unexpected message')
         else:
             return msg['samples']
-
-    def _getFeatureExpectation(self, S, N):
-        Srep, Arep = self.policy.sampleActions(S, N)
-        PHI_SA_rep = self.rbf.getStateActionFeatureMatrix(Srep, Arep)
-
-        # mean over each N rows
-        return asarray(PHI_SA_rep).reshape(-1, N, PHI_SA_rep.shape[1]).mean(1)
 
     def _updateRBFParameters(self):
         MuSA = Helper.getRepresentativeRows(c_[self.S, self.A], 500)
@@ -93,7 +87,7 @@ class MazeLearner:
         d = pickle.loads(s)
         self.policy = SparseGPPolicy.fromSerializableDict(d)
 
-    def learn(self, numIt, numLearnIt):
+    def learn(self, startEpsilon, numIt, numLearnIt):
         self.lstd.discountFactor = 0.95
 
         self.policy.GPMinVariance = 0.0
@@ -102,9 +96,12 @@ class MazeLearner:
 
         self.reps.epsilonAction = 0.5
 
+        self.epsilon = startEpsilon
+        epsilonFactor = 0.9;
+
         for i in range(numIt):
             # get new samples
-            St, At, Rt, S_t = self._getSamples(False)
+            St, At, Rt, S_t = self._getSamples(self.epsilon, False)
             print('sum reward for last samples: {}'.format(Rt.sum()))
 
             # add samples
@@ -127,7 +124,8 @@ class MazeLearner:
 
             for j in range(numLearnIt):
                 # LSTD to estimate Q function / Q(s,a) = phi(s, a).T * theta
-                self.PHI_SA_ = Helper.getFeatureExpectation(self.S_, 3,
+                # TODO memory
+                self.PHI_SA_ = Helper.getFeatureExpectation(self.S_, 5,
                         self.policy, self.rbf)
                 self.theta = self.lstd.learnLSTD(self.PHI_SA, self.PHI_SA_, self.R)
 
@@ -143,6 +141,8 @@ class MazeLearner:
                 #self.plotV(100, 50, 10)
                 #self.plotPolicyState2D(50, 25)
                 #input('Press key to continue...')
+
+            self.epsilon *= epsilonFactor
 
             self.it += 1
             gc.collect()

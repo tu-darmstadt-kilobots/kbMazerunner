@@ -62,10 +62,10 @@ class SparseGPPolicy:
         obj.__dict__ = d
         return obj
 
-    def _getRandomActions(self, numSamples, numRepetitions):
+    def _getRandomActions(self, numSamples):
         ar = self.aRange
 
-        A = empty((numSamples * numRepetitions, ar.shape[0]))
+        A = empty((numSamples, ar.shape[0]))
         for i in range(ar.shape[0]):
             A[:, i] = random.uniform(ar[i, 0], ar[i, 1], (A.shape[0],))
 
@@ -103,9 +103,20 @@ class SparseGPPolicy:
 
         kernelVectors = self.GPPriorVariance * \
             self.kernel.getGramMatrix(self.Ssub, S).T
-        featureVectors = dot(dot(kernelVectors, pinv(self.cholKy)),
-                pinv(self.cholKy.T))
 
+        cholKyInvReg = 0
+        while True:
+            try:
+                cholKyInv = pinv(self.cholKy + cholKyInvReg * eye(self.cholKy.shape[0]))
+                cholKyInvT = pinv(self.cholKy.T + cholKyInvReg * eye(self.cholKy.shape[0]))
+                break
+            except LinAlgError:
+                if cholKyInvReg == 0:
+                    cholKyInvReg = 1e-10
+                else:
+                    cholKyInvReg *= 2
+
+        featureVectors = dot(dot(kernelVectors, cholKyInv), cholKyInvT)
         featureVectorsW = mul(featureVectors, w)
 
         X = dot(featureVectorsW.T, featureVectors)
@@ -117,21 +128,21 @@ class SparseGPPolicy:
         self.trained = True
 
     def getRandomAction(self):
-        return self._getRandomActions(1, 1)
+        return self._getRandomActions(1)
 
     def getMeanAction(self, S):
         if not self.trained:
             if len(S.shape) == 1:
                 return self.getRandomAction()
             else:
-                return self._getRandomActions(S.shape[0], 1)
+                return self._getRandomActions(S.shape[0])
 
         kVec = self.GPPriorVariance * self.kernel.getGramMatrix(self.Ssub, S).T
         return dot(kVec, self.alpha)
 
-    def sampleActions(self, S, N):
+    def sampleActions(self, S):
         if not self.trained:
-            return repeat(S, N, axis=0), self._getRandomActions(S.shape[0], N)
+            return self._getRandomActions(S.shape[0])
 
         actionDim = self.alpha.shape[1]
 
@@ -157,12 +168,7 @@ class SparseGPPolicy:
             sigmaGP = sqrt(square(sigmaGP) + self.GPRegularizer)
         sigmaGP[sigmaGP < self.GPMinVariance] = self.GPMinVariance
 
-        # generate N action samples for each state in S
-        Srep = repeat(S, N, axis=0)
-        meanGPrep = repeat(meanGP, N, axis=0)
-        sigmaGPrep = repeat(sigmaGP, N, axis=0)
+        N = random.normal(0.0, 1.0, (S.shape[0], actionDim))
+        A = mul(N, sigmaGP) + meanGP
 
-        N = random.normal(0.0, 1.0, (Srep.shape[0], actionDim))
-        A = mul(N, sigmaGPrep) + meanGPrep
-
-        return Srep, A
+        return A

@@ -74,9 +74,8 @@ class SparseGPPolicy:
     def train(self, S, A, w):
         # choose random subset of state samples
         Nsubset = min(self.numSamplesSubset, S.shape[0])
-        #self.Ssub = Helper.getRepresentativeRows(S, Nsubset)
-
-        self.Ssub = Helper.getRandomSubset(S, Nsubset)
+        self.Ssub = Helper.getRepresentativeRows(S, Nsubset, True)
+        #self.Ssub = Helper.getRandomSubset(S, Nsubset)
 
         # set kernel bandwidth
         self.kernel.setBandwidth(Helper.getBandwidth(self.Ssub,

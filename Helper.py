@@ -2,6 +2,7 @@ from numpy import random, zeros, repeat, sqrt, median, newaxis, square, \
         transpose, asarray, asmatrix, minimum, multiply
 from scipy.spatial.distance import cdist
 
+from datetime import datetime
 
 class Helper:
     """
@@ -89,3 +90,12 @@ class Helper:
                     policy.sampleActions(S))
 
         return PHI / N
+
+    """
+        generates a folder name based on the current date
+    """
+    @staticmethod
+    def getSaveName():
+        t = datetime.now()
+        return '{}_{}_{}_{}_{}_{}_{}'.format(t.year, t.month, t.day,
+                t.hour, t.minute, t.second, t.microsecond)

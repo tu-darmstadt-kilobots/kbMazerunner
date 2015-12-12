@@ -1,11 +1,14 @@
 from numpy import array, asarray, zeros, c_, r_, repeat, sqrt, median, \
-        newaxis, square, transpose, random, linspace, meshgrid, empty
+        newaxis, square, transpose, random, linspace, meshgrid, empty, multiply
+from numpy import *
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import Rectangle
 
+import os
 import gc
+import pprint
 
 from zmq import Context, PAIR
 import pickle
@@ -26,7 +29,7 @@ class MazeLearner:
 
         kernel = ExponentialQuadraticKernel(2)
         # initial random range for actions
-        aRange = array([[-1e-1, 1e-1], [-1e-1, 1e-1]])
+        aRange = array([[-0.1, 0.1], [-0.1, 0.1]])
         self.policy = SparseGPPolicy(kernel, aRange)
 
         self.lstd = LeastSquaresTD()
@@ -36,6 +39,22 @@ class MazeLearner:
                 empty((0, 1)), empty((0, 2))
 
         self.it = 0
+
+        # default parameters
+        self.numEpisodes = 60
+        self.numStepsPerEpisode = 40
+
+        self.stepsPerSec = 4096
+
+        self.goalReward = 1.0
+        self.wallPunishment = 1.0
+
+        self.normalizeRepRows = False
+
+        self.bwFactorSA = 0.5
+        self.bwFactorS = 0.5
+
+        self.policy.bwFactor = 0.5
 
     def _sendPolicyModules(self):
         msg = {'message': 'sentPolicyModules',
@@ -47,11 +66,16 @@ class MazeLearner:
                'policyModule': 'SparseGPPolicy'}
         self.socket.send(pickle.dumps(msg, protocol=2))
 
-    def _getSamples(self, epsilon, useMean):
+    def _getSamples(self):
         msg = {'message': 'getSamples',
                'policyDict': self.policy.getSerializableDict(),
-               'epsilon': epsilon,
-               'useMean': useMean}
+               'numEpisodes': self.numEpisodes,
+               'numStepsPerEpisode': self.numStepsPerEpisode,
+               'stepsPerSec': self.stepsPerSec,
+               'goalReward': self.goalReward,
+               'wallPunishment': self.wallPunishment,
+               'epsilon': self.epsilon,
+               'useMean': False}
         self.socket.send(pickle.dumps(msg, protocol=2))
 
         msg = pickle.loads(self.socket.recv(), encoding='latin1')
@@ -60,13 +84,33 @@ class MazeLearner:
         else:
             return msg['samples']
 
+    """
+        for now just execute the mean policy to see how good it looks
+        can later be done automatically
+    """
+    def testPolicy(self, numEpisodes = 100, numStepsPerEpisode = 50,
+            stepsPerSec = 8):
+        msg = {'message': 'getSamples',
+               'policyDict': self.policy.getSerializableDict(),
+               'numEpisodes': numEpisodes,
+               'numStepsPerEpisode': numStepsPerEpisode,
+               'stepsPerSec': stepsPerSec,
+               'goalReward': 0.0,
+               'wallPunishment': 0.0,
+               'epsilon': 0.0,
+               'useMean': True}
+        self.socket.send(pickle.dumps(msg, protocol=2))
+
+        # discard result
+        self.socket.recv()
+
     def _updateRBFParameters(self):
-        MuSA = Helper.getRepresentativeRows(c_[self.S, self.A], 500, True)
+        MuSA = Helper.getRepresentativeRows(c_[self.S, self.A], 500,
+                self.normalizeRepRows)
+        MuS = Helper.getRepresentativeRows(self.S, 500, self.normalizeRepRows)
 
-        MuS = Helper.getRepresentativeRows(self.S, 500, True)
-
-        bwSA = Helper.getBandwidth(MuSA, 500, 0.5) # 3.0 0.5
-        bwS = Helper.getBandwidth(MuS, 500, 0.5) # 2.5 0.5
+        bwSA = Helper.getBandwidth(MuSA, 500, self.bwFactorSA)
+        bwS = Helper.getBandwidth(MuS, 500, self.bwFactorS)
 
         self.rbf = RBFFeatureFunction(MuSA, bwSA, MuS, bwS)
 
@@ -75,33 +119,76 @@ class MazeLearner:
 
         self._sendPolicyModules()
 
-    def savePolicy(self, fileName):
+    def savePolicyAndSamples(self, fileName):
         d = self.policy.getSerializableDict()
+        d['SARS'] = c_[self.S, self.A, self.R, self.S_]
+
         s = pickle.dumps(d)
         with open(fileName, 'wb') as f:
             f.write(s)
 
-    def loadPolicy(self, fileName):
+    def loadPolicyAndSamples(self, fileName):
         with open(fileName, 'rb') as f:
             s = f.read()
         d = pickle.loads(s)
+
         self.policy = SparseGPPolicy.fromSerializableDict(d)
 
-    def learn(self, startEpsilon, numIt, numLearnIt):
-        self.lstd.discountFactor = 0.95
+        SARS = d['SARS']
+        self.S = SARS[:, 0:2]
+        self.A = SARS[:, 2:4]
+        self.R = SARS[:, 4:5]
+        self.S_ = SARS[:, 5:7]
 
-        self.policy.GPMinVariance = 0.0
-        self.policy.GPRegularizer = 0.005
-        self.policy.bwFactor = 0.5 # 2.5 0.5
+    def saveParams(self, fileName):
+        params = {'numEpisodes': self.numEpisodes,
+                  'numStepsPerEpisode': self.numStepsPerEpisode,
+                  'goalReward': self.goalReward,
+                  'wallPunishment': self.wallPunishment,
+                  'normalizeRepresentativeRows': self.normalizeRepRows,
+                  'startEpsilon': self.startEpsilon,
+                  'epsilonFactor': self.epsilonFactor,
+                  'numLearnIterations': self.numLearnIt,
+                  'lstd.bwFactorSA': self.bwFactorSA,
+                  'lstd.discountFactor': self.lstd.discountFactor,
+                  'reps.bwFactorS': self.bwFactorS,
+                  'reps.epsilonAction': self.reps.epsilonAction,
+                  'gp.MinVariance': self.policy.GPMinVariance,
+                  'gp.Regularizer': self.policy.GPRegularizer,
+                  'gp.bwFactor': self.policy.bwFactor
+                  }
+
+        with open(fileName, 'w') as f:
+            f.write(pprint.pformat(params, width=1))
+
+    def learn(self, savePrefix, numSampleIt, numLearnIt = 1,
+            startEpsilon = 0.0, epsilonFactor = 1.0):
+        self.lstd.discountFactor = 0.95
 
         self.reps.epsilonAction = 0.5
 
-        self.epsilon = startEpsilon
-        epsilonFactor = 0.9;
+        self.policy.GPMinVariance = 0.0
+        self.policy.GPRegularizer = 0.005
+        self.policy.bwFactor = 0.5
 
-        for i in range(numIt):
+        self.numLearnIt = numLearnIt
+
+        self.startEpsilon = startEpsilon
+        self.epsilon = startEpsilon
+        self.epsilonFactor = epsilonFactor
+
+        # make data dir and save params
+        if savePrefix == '':
+            savePath = ''
+        else:
+            savePath = os.path.join(savePrefix, Helper.getSaveName())
+            os.makedirs(savePath)
+
+            self.saveParams(os.path.join(savePath, 'params'))
+
+        for i in range(numSampleIt):
             # get new samples
-            St, At, Rt, S_t = self._getSamples(self.epsilon, False)
+            St, At, Rt, S_t = self._getSamples()
             print('sum reward for last samples: {}'.format(Rt.sum()))
 
             # add samples
@@ -110,8 +197,10 @@ class MazeLearner:
             self.R = r_[self.R, Rt]
             self.S_ = r_[self.S_, S_t]
 
-            SARS = Helper.getRepresentativeRows(c_[self.S, self.A, self.R, self.S_],
-                    20000, True)
+            SARS = c_[self.S, self.A, self.R, self.S_]
+            SARS = Helper.getRepresentativeRows(SARS, 20000,
+                    self.normalizeRepRows)
+
             self.S = SARS[:, 0:2]
             self.A = SARS[:, 2:4]
             self.R = SARS[:, 4:5]
@@ -124,7 +213,6 @@ class MazeLearner:
 
             for j in range(numLearnIt):
                 # LSTD to estimate Q function / Q(s,a) = phi(s, a).T * theta
-                # TODO memory
                 self.PHI_SA_ = Helper.getFeatureExpectation(self.S_, 5,
                         self.policy, self.rbf)
                 self.theta = self.lstd.learnLSTD(self.PHI_SA, self.PHI_SA_, self.R)
@@ -136,20 +224,26 @@ class MazeLearner:
                 # GP
                 self.policy.train(self.S, self.A, self.w)
 
-                """ DEBUG """
+                self.it += 1
+                print('finished learning iteration {}'.format(self.it))
 
-                #self.plotV(100, 50, 10)
-                #self.plotPolicyState2D(50, 25)
-                #input('Press key to continue...')
+                # plot save results
+                figV = self.getValueFunctionFigure()
+                figP = self.getPolicyFigure()
 
-            self.epsilon *= epsilonFactor
+                if savePath != '':
+                    figV.savefig(os.path.join(savePath, 'V_{}.svg'.format(self.it)))
+                    figP.savefig(os.path.join(savePath, 'P_{}.svg'.format(self.it)))
 
-            self.it += 1
+                if self.it % 5 == 0:
+                    self.savePolicyAndSamples(os.path.join(savePath,
+                        'policy_samples_{}'.format(self.it)))
+
+            self.epsilon *= self.epsilonFactor
+
             gc.collect()
 
-            print(self.it)
-
-    def plotV(self, stepsX, stepsY, N):
+    def getValueFunctionFigure(self, stepsX = 100, stepsY = 50, N = 10):
         [X, Y] = meshgrid(linspace(0.0, 2.0, stepsX), linspace(0.0, 1.0, stepsY))
         X = X.flatten()
         Y = 1.0 - Y.flatten()
@@ -164,7 +258,7 @@ class MazeLearner:
         # max over each N rows
         V = asarray(Qrep).reshape(-1, N, Qrep.shape[1]).max(1).reshape(stepsY, stepsX)
 
-        plt.figure()
+        fig = plt.figure()
         plt.imshow(V)
 
         ax = plt.gca()
@@ -183,22 +277,27 @@ class MazeLearner:
             facecolor='grey'))
 
         plt.colorbar()
-        plt.title('V, iteration: {}'.format(self.it))
-        plt.show(block=False)
+        plt.title('value function, iteration {}'.format(self.it))
 
+        return fig
 
-    def plotPolicyState2D(self, stepsX, stepsY):
+    def getPolicyFigure(self, stepsX = 50, stepsY = 25):
         [X, Y] = meshgrid(linspace(0.0, 2.0, stepsX), linspace(0.0, 1.0, stepsY))
         X = X.flatten()
         Y = Y.flatten()
+
         A = asarray(self.policy.getMeanAction(c_[X, Y]))
+        A /= linalg.norm(A, axis=1).reshape((A.shape[0], 1))
+
         U = A[:, 0]
         V = A[:, 1]
 
-        plt.figure()
+        fig = plt.figure()
+
         plt.quiver(X, Y, U, V)
-        plt.title('iteration: {}'.format(self.it))
-        plt.show(block=False)
+        plt.title('policy, iteration {}'.format(self.it))
+
+        return fig
 
 learner = MazeLearner(2357)
 learner.connect()

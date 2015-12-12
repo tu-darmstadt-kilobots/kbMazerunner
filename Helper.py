@@ -1,5 +1,5 @@
 from numpy import random, zeros, repeat, sqrt, median, newaxis, square, \
-        transpose, asarray, asmatrix, minimum
+        transpose, asarray, asmatrix, minimum, multiply
 from scipy.spatial.distance import cdist
 
 
@@ -25,7 +25,12 @@ class Helper:
         (for each sample in X there is a row with "small" distance)
     """
     @staticmethod
-    def getRepresentativeRows(X, N):
+    def getRepresentativeRows(X, N, normalize):
+        if normalize:
+            X_mean = X.mean(axis=0)
+            X_std = X.std(axis=0)
+            X = (X - X_mean) / X_std;
+
         N = min(N, X.shape[0])
         Y = zeros((N, X.shape[1]))
 
@@ -35,6 +40,9 @@ class Helper:
         for i in range(1, N):
             Y[i, :] = X[D.argmax(), :]
             D = minimum(D, cdist(X, asmatrix(Y[i, :])))
+
+        if normalize:
+            Y = multiply(Y, X_std) + X_mean;
 
         return Y
 

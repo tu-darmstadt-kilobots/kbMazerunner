@@ -61,9 +61,9 @@ class MazeLearner:
             return msg['samples']
 
     def _updateRBFParameters(self):
-        MuSA = Helper.getRepresentativeRows(c_[self.S, self.A], 500)
+        MuSA = Helper.getRepresentativeRows(c_[self.S, self.A], 500, True)
 
-        MuS = Helper.getRepresentativeRows(self.S, 500)
+        MuS = Helper.getRepresentativeRows(self.S, 500, True)
 
         bwSA = Helper.getBandwidth(MuSA, 500, 0.5) # 3.0 0.5
         bwS = Helper.getBandwidth(MuS, 500, 0.5) # 2.5 0.5
@@ -111,7 +111,7 @@ class MazeLearner:
             self.S_ = r_[self.S_, S_t]
 
             SARS = Helper.getRepresentativeRows(c_[self.S, self.A, self.R, self.S_],
-                    20000)
+                    20000, True)
             self.S = SARS[:, 0:2]
             self.A = SARS[:, 2:4]
             self.R = SARS[:, 4:5]

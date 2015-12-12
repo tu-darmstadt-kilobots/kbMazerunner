@@ -12,6 +12,8 @@ class Helper:
     """
     @staticmethod
     def getRandomSubset(X, N):
+        N = min(N, X.shape[0])
+
         idx = random.choice(X.shape[0], size=N, replace=False)
         return X[idx, :]
 

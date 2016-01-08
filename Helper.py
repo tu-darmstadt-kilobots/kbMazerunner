@@ -1,5 +1,5 @@
 from numpy import random, zeros, repeat, sqrt, median, newaxis, square, \
-        transpose, asarray, asmatrix, minimum, multiply
+        transpose, asarray, asmatrix, minimum, multiply, c_
 from scipy.spatial.distance import cdist
 
 from datetime import datetime
@@ -81,13 +81,11 @@ class Helper:
         returns the expected state-action feature matrix
     """
     @staticmethod
-    def getFeatureExpectation(S, N, policy, featureFunc):
-        PHI = featureFunc.getStateActionFeatureMatrix(S,
-                policy.sampleActions(S))
+    def getFeatureExpectation(S, N, policy, kernelFunc, MuSA):
+        PHI = kernelFunc.getGramMatrix(c_[S, policy.sampleActions(S)], MuSA)
 
         for i in range(N - 1):
-            PHI += featureFunc.getStateActionFeatureMatrix(S,
-                    policy.sampleActions(S))
+            PHI += kernelFunc.getGramMatrix(c_[S, policy.sampleActions(S)], MuSA)
 
         return PHI / N
 

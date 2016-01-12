@@ -4,6 +4,7 @@ from numpy.linalg import lstsq, solve, pinv
 from scipy.linalg import LinAlgError, cholesky as chol
 
 import Kernel
+from Kernel import ExponentialQuadraticKernel, KernelOverKernel
 import pickle
 
 from Helper import Helper
@@ -21,9 +22,10 @@ class SparseGPPolicy:
         aRange: d x 2, d: number of action dimensions
             aRange[i, :] = [l, h] -> A[:, i] in [l, h] when not trained
     """
-    def __init__(self, kernel, aRange):
+    def __init__(self, aRange):
         self.numSamplesSubset = 500
-        self.bwFactor = 2.0
+        self.bwFactorOuter = 2.0
+        self.bwFactorInner = 2.0
 
         self.GPPriorVariance = 0.1
         self.GPRegularizer = 1e-6 # TODO toolbox / NLopt
@@ -34,7 +36,10 @@ class SparseGPPolicy:
 
         self.trained = False
 
-        self.kernel = kernel
+        # TODO give kernel as argument
+        self.kernel = KernelOverKernel(ExponentialQuadraticKernel(5),
+                ExponentialQuadraticKernel(20)) # 10 kilobots
+
         self.aRange = aRange
 
     """
@@ -58,7 +63,7 @@ class SparseGPPolicy:
             d['Ssub'] = pickle.loads(d['Ssub'])
             d['alpha'] = pickle.loads(d['alpha'])
             d['cholKy'] = pickle.loads(d['cholKy'])
-        obj = SparseGPPolicy(d['kernel'], d['aRange'])
+        obj = SparseGPPolicy(d['kernel'])
         obj.__dict__ = d
         return obj
 
@@ -77,9 +82,13 @@ class SparseGPPolicy:
         self.Ssub = Helper.getRepresentativeRows(S, Nsubset, True)
         #self.Ssub = Helper.getRandomSubset(S, Nsubset)
 
-        # set kernel bandwidth
-        self.kernel.setBandwidth(Helper.getBandwidth(self.Ssub,
-            self.numSamplesSubset, self.bwFactor))
+        # set kernel bandwidths
+        # TODO no hard coded dimensions
+        bwOuter = Helper.getBandwidth(self.Ssub[:, 0:5], self.numSamplesSubset,
+                self.bwFactorOuter)
+        bwInner = Helper.getBandwidth(self.Ssub[:, 5:], self.numSamplesSubset,
+                self.bwFactorInner)
+        self.kernel.setBandwidth(bwOuter, bwInner)
 
         # kernel matrix on subset of samples
         K = self.GPPriorVariance * \

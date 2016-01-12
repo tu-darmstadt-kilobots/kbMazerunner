@@ -14,7 +14,7 @@ import pickle
 from Helper import Helper
 from LeastSquaresTD import LeastSquaresTD
 from AC_REPS import AC_REPS
-from Kernel import ExponentialQuadraticKernel
+from Kernel import ExponentialQuadraticKernel, KernelOverKernel
 from SparseGPPolicy import SparseGPPolicy
 
 
@@ -26,22 +26,24 @@ class MazeLearner:
 
         # initial random range for actions
         aRange = array([[-0.1, 0.1], [-0.1, 0.1]])
-        self.policy = SparseGPPolicy(ExponentialQuadraticKernel(2), aRange)
+        self.policy = SparseGPPolicy(aRange)
 
         # kernels used for LSTD
-        self.kernelS = ExponentialQuadraticKernel(2)
-        self.kernelSA = ExponentialQuadraticKernel(4)
+        self.kernelS = KernelOverKernel(ExponentialQuadraticKernel(5),
+                ExponentialQuadraticKernel(20))
+        self.kernelSA = KernelOverKernel(ExponentialQuadraticKernel(7),
+                ExponentialQuadraticKernel(20))
 
         self.lstd = LeastSquaresTD()
         self.reps = AC_REPS()
 
-        self.S, self.A, self.R, self.S_ = empty((0, 2)), empty((0, 2)),\
-                empty((0, 1)), empty((0, 2))
+        self.S, self.A, self.R, self.S_ = empty((0, 25)), empty((0, 2)),\
+                empty((0, 1)), empty((0, 25))
 
         self.it = 0
 
         # default parameters
-        self.numEpisodes = 60
+        self.numEpisodes = 200
         self.numStepsPerEpisode = 40
 
         self.stepsPerSec = 4096
@@ -51,10 +53,14 @@ class MazeLearner:
 
         self.normalizeRepRows = False
 
-        self.bwFactorSA = 0.5
-        self.bwFactorS = 0.5
+        self.bwFactorSAOuter = 5.0
+        self.bwFactorSAInner = 5.0
 
-        self.policy.bwFactor = 0.5
+        self.bwFactorSOuter = 5.0
+        self.bwFactorSInner = 5.0
+
+        self.policy.bwFactorOuter = 5.0
+        self.policy.bwFactorInner = 5.0
 
     def _sendPolicyModules(self):
         msg = {'message': 'sentPolicyModules',
@@ -109,11 +115,18 @@ class MazeLearner:
                 self.normalizeRepRows)
         self.MuS = Helper.getRepresentativeRows(self.S, 500, self.normalizeRepRows)
 
-        bwSA = Helper.getBandwidth(self.MuSA, 500, self.bwFactorSA)
-        bwS = Helper.getBandwidth(self.MuS, 500, self.bwFactorS)
+        bwSAOuter = Helper.getBandwidth(self.MuSA[:, 0:7], 500,
+                self.bwFactorSAOuter)
+        bwSAInner = Helper.getBandwidth(self.MuSA[:, 7:], 500,
+                self.bwFactorSAInner)
 
-        self.kernelS.setBandwidth(bwS)
-        self.kernelSA.setBandwidth(bwSA)
+        bwSOuter = Helper.getBandwidth(self.MuS[:, 0:5], 500,
+                self.bwFactorSOuter)
+        bwSInner = Helper.getBandwidth(self.MuS[:, 5:], 500,
+                self.bwFactorSInner)
+
+        self.kernelS.setBandwidth(bwSOuter, bwSInner)
+        self.kernelSA.setBandwidth(bwSAOuter, bwSAInner)
 
     def connect(self):
         self.socket.bind('tcp://*:{}s'.format(self.port))
@@ -136,10 +149,10 @@ class MazeLearner:
         self.policy = SparseGPPolicy.fromSerializableDict(d)
 
         SARS = d['SARS']
-        self.S = SARS[:, 0:2]
-        self.A = SARS[:, 2:4]
-        self.R = SARS[:, 4:5]
-        self.S_ = SARS[:, 5:7]
+        self.S = SARS[:, 0:25]
+        self.A = SARS[:, 25:27]
+        self.R = SARS[:, 27:28]
+        self.S_ = SARS[:, 28:53]
 
     def saveParams(self, fileName):
         params = {'numEpisodes': self.numEpisodes,
@@ -150,13 +163,17 @@ class MazeLearner:
                   'startEpsilon': self.startEpsilon,
                   'epsilonFactor': self.epsilonFactor,
                   'numLearnIterations': self.numLearnIt,
-                  'lstd.bwFactorSA': self.bwFactorSA,
+                  'lstd.bwFactorSAOuter': self.bwFactorSAOuter,
+                  'lstd.bwFactorSAInner': self.bwFactorSAInner,
+                  'lstd.bwFactorSOuter': self.bwFactorSOuter,
+                  'lstd.bwFactorSInner': self.bwFactorSInner,
                   'lstd.discountFactor': self.lstd.discountFactor,
                   'reps.bwFactorS': self.bwFactorS,
                   'reps.epsilonAction': self.reps.epsilonAction,
                   'gp.MinVariance': self.policy.GPMinVariance,
                   'gp.Regularizer': self.policy.GPRegularizer,
-                  'gp.bwFactor': self.policy.bwFactor
+                  'gp.bwFactorOuter': self.policy.bwFactorOuter,
+                  'gp.bwFactorInner': self.policy.bwFactorInner
                   }
 
         with open(fileName, 'w') as f:
@@ -170,7 +187,6 @@ class MazeLearner:
 
         self.policy.GPMinVariance = 0.0
         self.policy.GPRegularizer = 0.005
-        self.policy.bwFactor = 0.5
 
         self.numLearnIt = numLearnIt
 
@@ -204,10 +220,10 @@ class MazeLearner:
             SARS = Helper.getRepresentativeRows(SARS, 20000,
                     self.normalizeRepRows)
 
-            self.S = SARS[:, 0:2]
-            self.A = SARS[:, 2:4]
-            self.R = SARS[:, 4:5]
-            self.S_ = SARS[:, 5:7]
+            self.S = SARS[:, 0:25]
+            self.A = SARS[:, 25:27]
+            self.R = SARS[:, 27:28]
+            self.S_ = SARS[:, 28:53]
 
             self._updateKernelParameters()
 
@@ -231,16 +247,16 @@ class MazeLearner:
                 print('finished learning iteration {}'.format(self.it))
 
                 # plot save results
-                figV = self.getValueFunctionFigure()
-                figP = self.getPolicyFigure(20, 10)
+                #figV = self.getValueFunctionFigure()
+                #figP = self.getPolicyFigure(20, 10)
 
-                if savePath != '':
-                    figV.savefig(os.path.join(savePath, 'V_{}.svg'.format(self.it)))
-                    figP.savefig(os.path.join(savePath, 'P_{}.svg'.format(self.it)))
+                #if savePath != '':
+                #    figV.savefig(os.path.join(savePath, 'V_{}.svg'.format(self.it)))
+                #    figP.savefig(os.path.join(savePath, 'P_{}.svg'.format(self.it)))
 
-                if self.it % 5 == 0:
-                    self.savePolicyAndSamples(os.path.join(savePath,
-                        'policy_samples_{}'.format(self.it)))
+                #if self.it % 5 == 0:
+                #    self.savePolicyAndSamples(os.path.join(savePath,
+                #        'policy_samples_{}'.format(self.it)))
 
             self.epsilon *= self.epsilonFactor
 

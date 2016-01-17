@@ -23,9 +23,9 @@ class SparseGPPolicy:
             aRange[i, :] = [l, h] -> A[:, i] in [l, h] when not trained
     """
     def __init__(self, aRange):
-        self.numSamplesSubset = 500
-        self.bwFactorOuter = 2.0
-        self.bwFactorInner = 2.0
+        self.numSamplesSubset = 100
+        self.bwFactorOuter = 1.0
+        self.bwFactorInner = 1.0
 
         self.GPPriorVariance = 0.1
         self.GPRegularizer = 1e-6 # TODO toolbox / NLopt
@@ -37,7 +37,7 @@ class SparseGPPolicy:
         self.trained = False
 
         # TODO give kernel as argument
-        self.kernel = KernelOverKernel(ExponentialQuadraticKernel(5),
+        self.kernel = KernelOverKernel(ExponentialQuadraticKernel(3),
                 ExponentialQuadraticKernel(20)) # 10 kilobots
 
         self.aRange = aRange
@@ -84,9 +84,9 @@ class SparseGPPolicy:
 
         # set kernel bandwidths
         # TODO no hard coded dimensions
-        bwOuter = Helper.getBandwidth(self.Ssub[:, 0:5], self.numSamplesSubset,
+        bwOuter = Helper.getBandwidth(self.Ssub[:, 0:3], self.numSamplesSubset,
                 self.bwFactorOuter)
-        bwInner = Helper.getBandwidth(self.Ssub[:, 5:], self.numSamplesSubset,
+        bwInner = Helper.getBandwidth(self.Ssub[:, 3:], self.numSamplesSubset,
                 self.bwFactorInner)
         self.kernel.setBandwidth(bwOuter, bwInner)
 

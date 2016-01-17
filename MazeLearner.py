@@ -28,22 +28,28 @@ class MazeLearner:
         aRange = array([[-0.1, 0.1], [-0.1, 0.1]])
         self.policy = SparseGPPolicy(aRange)
 
+        # s: obj.alpha light.x light.y kb.x1 kb.y1 ... kb.xn kb.yn
+        #    everything is relative to the object position
+        # a: light movement (dx, dy)
+        self.NUM_KILOBOTS = 10
+
         # kernels used for LSTD
-        self.kernelS = KernelOverKernel(ExponentialQuadraticKernel(5),
-                ExponentialQuadraticKernel(20))
-        self.kernelSA = KernelOverKernel(ExponentialQuadraticKernel(7),
-                ExponentialQuadraticKernel(20))
+        self.kernelS = KernelOverKernel(ExponentialQuadraticKernel(3),
+                ExponentialQuadraticKernel(2 * self.NUM_KILOBOTS))
+        self.kernelSA = KernelOverKernel(ExponentialQuadraticKernel(3 + 2),
+                ExponentialQuadraticKernel(2 * self.NUM_KILOBOTS))
 
         self.lstd = LeastSquaresTD()
         self.reps = AC_REPS()
 
-        self.S, self.A, self.R, self.S_ = empty((0, 25)), empty((0, 2)),\
-                empty((0, 1)), empty((0, 25))
+        self.sDim = 1 + 2 + 2 * self.NUM_KILOBOTS
+        self.S, self.A, self.R, self.S_ = empty((0, self.sDim)), empty((0, 2)),\
+                empty((0, 1)), empty((0, self.sDim))
 
         self.it = 0
 
         # default parameters
-        self.numEpisodes = 200
+        self.numEpisodes = 60
         self.numStepsPerEpisode = 40
 
         self.stepsPerSec = 4096
@@ -53,14 +59,14 @@ class MazeLearner:
 
         self.normalizeRepRows = False
 
-        self.bwFactorSAOuter = 5.0
-        self.bwFactorSAInner = 5.0
+        self.bwFactorSAOuter = 1.0
+        self.bwFactorSAInner = 1.0
 
-        self.bwFactorSOuter = 5.0
-        self.bwFactorSInner = 5.0
+        self.bwFactorSOuter = 1.0
+        self.bwFactorSInner = 1.0
 
-        self.policy.bwFactorOuter = 5.0
-        self.policy.bwFactorInner = 5.0
+        self.policy.bwFactorOuter = 1.0
+        self.policy.bwFactorInner = 1.0
 
     def _sendPolicyModules(self):
         msg = {'message': 'sentPolicyModules',
@@ -110,19 +116,31 @@ class MazeLearner:
         # discard result
         self.socket.recv()
 
-    def _updateKernelParameters(self):
-        self.MuSA = Helper.getRepresentativeRows(c_[self.S, self.A], 500,
-                self.normalizeRepRows)
-        self.MuS = Helper.getRepresentativeRows(self.S, 500, self.normalizeRepRows)
+    @staticmethod
+    def _getStateActionMatrix(S, A):
+        # states without kilobot positions + actions + kilobot positions
+        return c_[S[:, 0:3], A, S[:, 3:]]
 
-        bwSAOuter = Helper.getBandwidth(self.MuSA[:, 0:7], 500,
+    def _unpackSARS(self, SARS):
+        return SARS[:, 0:self.sDim],\
+               SARS[:, self.sDim:(self.sDim + 2)],\
+               SARS[:, (self.sDim + 2):(self.sDim + 3)],\
+               SARS[:, (self.sDim + 3):(2 * self.sDim + 3)]
+
+    def _updateKernelParameters(self):
+        SA = MazeLearner._getStateActionMatrix(self.S, self.A)
+
+        self.MuSA = Helper.getRepresentativeRows(SA, 100, self.normalizeRepRows)
+        self.MuS = Helper.getRepresentativeRows(self.S, 100, self.normalizeRepRows)
+
+        bwSAOuter = Helper.getBandwidth(self.MuSA[:, 0:(3 + 2)], 500,
                 self.bwFactorSAOuter)
-        bwSAInner = Helper.getBandwidth(self.MuSA[:, 7:], 500,
+        bwSAInner = Helper.getBandwidth(self.MuSA[:, (3 + 2):], 500,
                 self.bwFactorSAInner)
 
-        bwSOuter = Helper.getBandwidth(self.MuS[:, 0:5], 500,
+        bwSOuter = Helper.getBandwidth(self.MuS[:, 0:3], 500,
                 self.bwFactorSOuter)
-        bwSInner = Helper.getBandwidth(self.MuS[:, 5:], 500,
+        bwSInner = Helper.getBandwidth(self.MuS[:, 3:], 500,
                 self.bwFactorSInner)
 
         self.kernelS.setBandwidth(bwSOuter, bwSInner)
@@ -149,10 +167,7 @@ class MazeLearner:
         self.policy = SparseGPPolicy.fromSerializableDict(d)
 
         SARS = d['SARS']
-        self.S = SARS[:, 0:25]
-        self.A = SARS[:, 25:27]
-        self.R = SARS[:, 27:28]
-        self.S_ = SARS[:, 28:53]
+        self.S, self.A, self.R, self.S_ = self._unpackSARS(SARS)
 
     def saveParams(self, fileName):
         params = {'numEpisodes': self.numEpisodes,
@@ -215,25 +230,24 @@ class MazeLearner:
             self.R = r_[self.R, Rt]
             self.S_ = r_[self.S_, S_t]
 
-            # only keep 20000 samples
+            # only keep 5000 samples
             SARS = c_[self.S, self.A, self.R, self.S_]
-            SARS = Helper.getRepresentativeRows(SARS, 20000,
-                    self.normalizeRepRows)
+            SARS = Helper.getRepresentativeRows(SARS, 5000, self.normalizeRepRows)
 
-            self.S = SARS[:, 0:25]
-            self.A = SARS[:, 25:27]
-            self.R = SARS[:, 27:28]
-            self.S_ = SARS[:, 28:53]
+            self.S, self.A, self.R, self.S_ = self._unpackSARS(SARS)
 
             self._updateKernelParameters()
 
             self.PHI_S = self.kernelS.getGramMatrix(self.S, self.MuS)
-            self.PHI_SA = self.kernelSA.getGramMatrix(c_[self.S, self.A], self.MuSA)
+
+            SA = MazeLearner._getStateActionMatrix(self.S, self.A)
+            self.PHI_SA = self.kernelSA.getGramMatrix(SA, self.MuSA)
 
             for j in range(numLearnIt):
                 # LSTD to estimate Q function / Q(s,a) = phi(s, a).T * theta
                 self.PHI_SA_ = Helper.getFeatureExpectation(self.S_, 5,
-                        self.policy, self.kernelSA, self.MuSA)
+                        self.policy, self.kernelSA,
+                        MazeLearner._getStateActionMatrix, self.MuSA)
                 self.theta = self.lstd.learnLSTD(self.PHI_SA, self.PHI_SA_, self.R)
 
                 # AC-REPS

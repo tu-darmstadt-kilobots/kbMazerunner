@@ -134,8 +134,8 @@ class KernelOverKernel(Kernel):
             Bre = reshape(B2[i, :], ((N, 2)))
             Km[i, :] = one * self.innerKernel.getGramMatrix(Bre, Bre) * one.T
 
-        Are = c_[A2.flat[0::2], A2.flat[1::2]]
-        Bre = c_[B2.flat[0::2], B2.flat[1::2]]
+        Are = c_[A2.flat[0::2].T, A2.flat[1::2].T]
+        Bre = c_[B2.flat[0::2].T, B2.flat[1::2].T]
         Knm = self.innerKernel.getGramMatrix(Are, Bre)
 
         K = empty((A2.shape[0], B2.shape[0]))
@@ -143,7 +143,7 @@ class KernelOverKernel(Kernel):
             for j in range(B2.shape[0]):
                 K[i, j] = Kn[i, 0] + Km[j, 0]
                 K[i, j] -= 2 * Knm[N * i:N * (i + 1), N * j:N * (j + 1)].sum()
-                K[i, j] *= (1 / N2)
+                K[i, j] *= (1.0 / N2) # 1.0 important for python 2
 
         return self.outerKernel.getGramMatrix(A1, B1, K)
 

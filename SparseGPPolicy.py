@@ -1,5 +1,6 @@
 from numpy import eye, random, dot, sqrt, repeat, array, \
         square, newaxis, tile, empty, r_, matrix, abs, multiply as mul
+from numpy import *
 from numpy.linalg import lstsq, solve, pinv
 from scipy.linalg import LinAlgError, cholesky as chol
 
@@ -23,7 +24,7 @@ class SparseGPPolicy:
             aRange[i, :] = [l, h] -> A[:, i] in [l, h] when not trained
     """
     def __init__(self, aRange):
-        self.numSamplesSubset = 100
+        self.numSamplesSubset = 10
         self.bwFactorOuter = 1.0
         self.bwFactorInner = 1.0
 
@@ -38,7 +39,7 @@ class SparseGPPolicy:
 
         # TODO give kernel as argument
         self.kernel = KernelOverKernel(ExponentialQuadraticKernel(3),
-                ExponentialQuadraticKernel(20)) # 10 kilobots
+                ExponentialQuadraticKernel(2))
 
         self.aRange = aRange
 
@@ -79,15 +80,18 @@ class SparseGPPolicy:
     def train(self, S, A, w):
         # choose random subset of state samples
         Nsubset = min(self.numSamplesSubset, S.shape[0])
-        self.Ssub = Helper.getRepresentativeRows(S, Nsubset, True)
-        #self.Ssub = Helper.getRandomSubset(S, Nsubset)
+        #self.Ssub = Helper.getRepresentativeRows(S, Nsubset, True)
+        self.Ssub = Helper.getRandomSubset(S, Nsubset)
 
         # set kernel bandwidths
         # TODO no hard coded dimensions
         bwOuter = Helper.getBandwidth(self.Ssub[:, 0:3], self.numSamplesSubset,
                 self.bwFactorOuter)
-        bwInner = Helper.getBandwidth(self.Ssub[:, 3:], self.numSamplesSubset,
-                self.bwFactorInner)
+
+        kbPos = self.Ssub[:, 3:]
+        kbPos = c_[kbPos.flat[0::2].T, kbPos.flat[1::2].T]
+        bwInner = Helper.getBandwidth(kbPos, self.numSamplesSubset, self.bwFactorInner)
+
         self.kernel.setBandwidth(bwOuter, bwInner)
 
         # kernel matrix on subset of samples
@@ -163,11 +167,13 @@ class SparseGPPolicy:
 
         kernelSelf = self.GPPriorVariance * self.kernel.getGramDiag(S)
         sigmaGP = kernelSelf.squeeze() - sigmaGP.squeeze()
+        sigmaGP = asarray(sigmaGP).squeeze()
 
         if sigmaGP.shape == (): # single number
             sigmaGP = matrix([sigmaGP])
 
         sigmaGP[sigmaGP < 0] = 0
+
         sigmaGP = tile(sqrt(sigmaGP)[:, newaxis], (1, actionDim))
 
         if self.UseGPBug:

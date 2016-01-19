@@ -31,13 +31,13 @@ class MazeLearner:
         # s: obj.alpha light.x light.y kb.x1 kb.y1 ... kb.xn kb.yn
         #    everything is relative to the object position
         # a: light movement (dx, dy)
-        self.NUM_KILOBOTS = 10
+        self.NUM_KILOBOTS = 4
 
         # kernels used for LSTD
         self.kernelS = KernelOverKernel(ExponentialQuadraticKernel(3),
-                ExponentialQuadraticKernel(2 * self.NUM_KILOBOTS))
+                ExponentialQuadraticKernel(2))
         self.kernelSA = KernelOverKernel(ExponentialQuadraticKernel(3 + 2),
-                ExponentialQuadraticKernel(2 * self.NUM_KILOBOTS))
+                ExponentialQuadraticKernel(2))
 
         self.lstd = LeastSquaresTD()
         self.reps = AC_REPS()
@@ -130,18 +130,25 @@ class MazeLearner:
     def _updateKernelParameters(self):
         SA = MazeLearner._getStateActionMatrix(self.S, self.A)
 
-        self.MuSA = Helper.getRepresentativeRows(SA, 100, self.normalizeRepRows)
-        self.MuS = Helper.getRepresentativeRows(self.S, 100, self.normalizeRepRows)
+        self.MuSA = Helper.getRandomSubset(SA, 10)
+        self.MuS = Helper.getRandomSubset(self.S, 10)
+
+        #self.MuSA = Helper.getRepresentativeRows(SA, 100, self.normalizeRepRows)
+        #self.MuS = Helper.getRepresentativeRows(self.S, 100, self.normalizeRepRows)
 
         bwSAOuter = Helper.getBandwidth(self.MuSA[:, 0:(3 + 2)], 500,
                 self.bwFactorSAOuter)
-        bwSAInner = Helper.getBandwidth(self.MuSA[:, (3 + 2):], 500,
-                self.bwFactorSAInner)
+
+        kbPosSA = self.MuSA[:, (3 + 2):] # numSamples x 2 * numKilobots
+        kbPosSA = c_[kbPosSA.flat[0::2].T, kbPosSA.flat[1::2].T] # * x 2
+        bwSAInner = Helper.getBandwidth(kbPosSA, 500, self.bwFactorSAInner)
 
         bwSOuter = Helper.getBandwidth(self.MuS[:, 0:3], 500,
                 self.bwFactorSOuter)
-        bwSInner = Helper.getBandwidth(self.MuS[:, 3:], 500,
-                self.bwFactorSInner)
+
+        kbPosS = self.MuS[:, 3:]
+        kbPosS = c_[kbPosS.flat[0::2].T, kbPosS.flat[1::2].T]
+        bwSInner = Helper.getBandwidth(kbPosS, 500, self.bwFactorSInner)
 
         self.kernelS.setBandwidth(bwSOuter, bwSInner)
         self.kernelSA.setBandwidth(bwSAOuter, bwSAInner)
@@ -232,7 +239,8 @@ class MazeLearner:
 
             # only keep 5000 samples
             SARS = c_[self.S, self.A, self.R, self.S_]
-            SARS = Helper.getRepresentativeRows(SARS, 5000, self.normalizeRepRows)
+            SARS = Helper.getRandomSubset(SARS, 5000)
+            #SARS = Helper.getRepresentativeRows(SARS, 5000, self.normalizeRepRows)
 
             self.S, self.A, self.R, self.S_ = self._unpackSARS(SARS)
 

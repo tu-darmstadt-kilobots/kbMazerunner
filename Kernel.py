@@ -4,6 +4,7 @@ from numpy import *
 from numexpr import evaluate as ev
 import pickle
 
+import time
 
 class Kernel:
     """
@@ -124,26 +125,35 @@ class KernelOverKernel(Kernel):
         one = ones((1, N))
         N2 = N * N
 
+        t = time.time()
         Kn = empty((A2.shape[0], 1))
         for i in range(A2.shape[0]):
             Are = reshape(A2[i, :], ((N, 2)))
             Kn[i, :] = one * self.innerKernel.getGramMatrix(Are, Are) * one.T
+        print('Kn:', time.time() - t)
 
+        t = time.time()
         Km = empty((B2.shape[0], 1))
         for i in range(B2.shape[0]):
             Bre = reshape(B2[i, :], ((N, 2)))
             Km[i, :] = one * self.innerKernel.getGramMatrix(Bre, Bre) * one.T
+        print('Km:', time.time() - t)
 
+        t = time.time()
         Are = c_[A2.flat[0::2].T, A2.flat[1::2].T]
         Bre = c_[B2.flat[0::2].T, B2.flat[1::2].T]
         Knm = self.innerKernel.getGramMatrix(Are, Bre)
+        print('Kmn:', time.time() - t)
 
-        K = empty((A2.shape[0], B2.shape[0]))
-        for i in range(A2.shape[0]):
-            for j in range(B2.shape[0]):
-                K[i, j] = Kn[i, 0] + Km[j, 0]
-                K[i, j] -= 2 * Knm[N * i:N * (i + 1), N * j:N * (j + 1)].sum()
-                K[i, j] *= (1.0 / N2) # 1.0 important for python 2
+        t = time.time()
+        # pad left and top with zeros
+        Knm = c_[zeros((Knm.shape[0] + 1, 1)), r_[zeros((1, Knm.shape[1])), Knm]]
+
+        # sum over all NxN submatrices using a summed area table (S)
+        S = Knm.cumsum(axis=0).cumsum(axis=1)
+        K = (-2 * (S[N::N, N::N] + S[0:-1:N, 0:-1:N] -\
+                   S[0:-1:N, N::N] - S[N::N, 0:-1:N]) + Kn + Km.T) / N2
+        print('K:', time.time() - t)
 
         return self.outerKernel.getGramMatrix(A1, B1, K)
 

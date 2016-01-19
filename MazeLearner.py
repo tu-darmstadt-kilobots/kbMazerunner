@@ -130,8 +130,8 @@ class MazeLearner:
     def _updateKernelParameters(self):
         SA = MazeLearner._getStateActionMatrix(self.S, self.A)
 
-        self.MuSA = Helper.getRandomSubset(SA, 10)
-        self.MuS = Helper.getRandomSubset(self.S, 10)
+        self.MuSA = Helper.getRandomSubset(SA, 100)
+        self.MuS = Helper.getRandomSubset(self.S, 100)
 
         #self.MuSA = Helper.getRepresentativeRows(SA, 100, self.normalizeRepRows)
         #self.MuS = Helper.getRepresentativeRows(self.S, 100, self.normalizeRepRows)
@@ -209,6 +209,7 @@ class MazeLearner:
 
         self.policy.GPMinVariance = 0.0
         self.policy.GPRegularizer = 0.005
+        self.policy.numSamplesSubset = 100
 
         self.numLearnIt = numLearnIt
 

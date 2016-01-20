@@ -73,26 +73,6 @@ class Helper:
         return bw
 
     """
-        S: states
-        N: number of actions to sample for each state
-        policy: policy to sample the actions from
-        featureFunc: function to compute the state-action feature matrix
-
-        returns the expected state-action feature matrix
-    """
-    @staticmethod
-    def getFeatureExpectation(S, N, policy, kernelFunc, stateActionCombFunc, MuSA):
-        SA = stateActionCombFunc(S, policy.sampleActions(S))
-
-        PHI = kernelFunc.getGramMatrix(SA, MuSA)
-
-        for i in range(N - 1):
-            SA = stateActionCombFunc(S, policy.sampleActions(S))
-            PHI += kernelFunc.getGramMatrix(SA, MuSA)
-
-        return PHI / N
-
-    """
         generates a folder name based on the current date
     """
     @staticmethod

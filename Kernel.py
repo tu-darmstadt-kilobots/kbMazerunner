@@ -20,8 +20,8 @@ class Kernel:
     def fromSerializableDict(d):
         if d['type'] == 'ExpQuad':
             return ExponentialQuadraticKernel.fromSerializableDict(d)
-        elif d['type'] == 'KernelOverKernel':
-            return KernelOverKernel.fromSerializableDict(d)
+        elif d['type'] == 'KilobotKernel':
+            return KilobotKernel.fromSerializableDict(d)
 
     def getNumDimensions(self):
         raise NotImplementedError('getNumDimensions() not implemented.')
@@ -83,37 +83,32 @@ class ExponentialQuadraticKernel(Kernel):
         return ones((A.shape[0], 1))
 
 
-class KernelOverKernel(Kernel):
-    """
-        uses outerKernel for the final kernel matrix and
-        innerKernel to get similarities between the "last" dimensions
-    """
-    def __init__(self, outerKernel, innerKernel):
-        self.outerKernel = outerKernel
-        self.innerKernel = innerKernel
+class KilobotKernel(Kernel):
+    def __init__(self, numNonKilobotDimensions):
+        self.kernelNonKb = ExponentialQuadraticKernel(numNonKilobotDimensions)
+        self.kernelKb = ExponentialQuadraticKernel(2)
 
-    """
-        bw1: bandwidth for outerKernel
-        bw2: bandwidth for innerKernel
-    """
-    def setBandwidth(self, outerBw, innerBw):
-        self.outerKernel.setBandwidth(outerBw)
-        self.innerKernel.setBandwidth(innerBw)
+    def setBandwidth(self, bwNonKb, bwKb):
+        self.kernelNonKb.setBandwidth(bwNonKb)
+        self.kernelKb.setBandwidth(bwKb)
 
     def getSerializableDict(self):
-        return {'type': 'KernelOverKernel',
-                'outerKernel': self.outerKernel.getSerializableDict(),
-                'innerKernel': self.innerKernel.getSerializableDict()}
+        return {'type': 'KilobotKernel',
+                'kernelNonKb': self.kernelNonKb.getSerializableDict(),
+                'kernelKb': self.kernelKb.getSerializableDict()}
 
     @staticmethod
     def fromSerializableDict(d):
-        outerKernel = Kernel.fromSerializableDict(d['outerKernel'])
-        innerKernel = Kernel.fromSerializableDict(d['innerKernel'])
+        kernelNonKb = Kernel.fromSerializableDict(d['kernelNonKb'])
+        kernelKb = Kernel.fromSerializableDict(d['kernelKb'])
 
-        return KernelOverKernel(outerKernel, innerKernel)
+        k = KilobotKernel(1)
+        k.kernelNonKb = kernelNonKb
+        k.kernelKb = kernelKb
+        return k
 
     def getGramMatrix(self, A, B):
-        dim1 = self.outerKernel.getNumDimensions()
+        dim1 = self.kernelNonKb.getNumDimensions()
 
         A1 = A[:, 0:dim1]
         B1 = B[:, 0:dim1]
@@ -125,27 +120,20 @@ class KernelOverKernel(Kernel):
         one = ones((1, N))
         N2 = N * N
 
-        t = time.time()
         Kn = empty((A2.shape[0], 1))
         for i in range(A2.shape[0]):
             Are = reshape(A2[i, :], ((N, 2)))
-            Kn[i, :] = one * self.innerKernel.getGramMatrix(Are, Are) * one.T
-        print('Kn:', time.time() - t)
+            Kn[i, :] = one * self.kernelKb.getGramMatrix(Are, Are) * one.T
 
-        t = time.time()
         Km = empty((B2.shape[0], 1))
         for i in range(B2.shape[0]):
             Bre = reshape(B2[i, :], ((N, 2)))
-            Km[i, :] = one * self.innerKernel.getGramMatrix(Bre, Bre) * one.T
-        print('Km:', time.time() - t)
+            Km[i, :] = one * self.kernelKb.getGramMatrix(Bre, Bre) * one.T
 
-        t = time.time()
         Are = c_[A2.flat[0::2].T, A2.flat[1::2].T]
         Bre = c_[B2.flat[0::2].T, B2.flat[1::2].T]
-        Knm = self.innerKernel.getGramMatrix(Are, Bre)
-        print('Kmn:', time.time() - t)
+        Knm = self.kernelKb.getGramMatrix(Are, Bre)
 
-        t = time.time()
         # pad left and top with zeros
         Knm = c_[zeros((Knm.shape[0] + 1, 1)), r_[zeros((1, Knm.shape[1])), Knm]]
 
@@ -153,9 +141,8 @@ class KernelOverKernel(Kernel):
         S = Knm.cumsum(axis=0).cumsum(axis=1)
         K = (-2 * (S[N::N, N::N] + S[0:-1:N, 0:-1:N] -\
                    S[0:-1:N, N::N] - S[N::N, 0:-1:N]) + Kn + Km.T) / N2
-        print('K:', time.time() - t)
 
-        return self.outerKernel.getGramMatrix(A1, B1, K)
+        return self.kernelNonKb.getGramMatrix(A1, B1, K)
 
     def getGramDiag(self, A):
         return ones((A.shape[0], 1))

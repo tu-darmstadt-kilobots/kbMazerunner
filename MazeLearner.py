@@ -7,6 +7,7 @@ from matplotlib.patches import Rectangle
 import os
 import gc
 import pprint
+import time
 
 from zmq import Context, PAIR
 import pickle
@@ -14,7 +15,7 @@ import pickle
 from Helper import Helper
 from LeastSquaresTD import LeastSquaresTD
 from AC_REPS import AC_REPS
-from Kernel import ExponentialQuadraticKernel, KernelOverKernel
+from Kernel import ExponentialQuadraticKernel, KilobotKernel
 from SparseGPPolicy import SparseGPPolicy
 
 
@@ -24,25 +25,24 @@ class MazeLearner:
         self.socket = self.context.socket(PAIR)
         self.port = port
 
-        # initial random range for actions
-        aRange = array([[-0.1, 0.1], [-0.1, 0.1]])
-        self.policy = SparseGPPolicy(aRange)
-
         # s: obj.alpha light.x light.y kb.x1 kb.y1 ... kb.xn kb.yn
         #    everything is relative to the object position
         # a: light movement (dx, dy)
         self.NUM_KILOBOTS = 4
+        self.NUM_NON_KB_DIM = 3
+
+        # initial random range for actions
+        aRange = array([[-0.1, 0.1], [-0.1, 0.1]])
+        self.policy = SparseGPPolicy(KilobotKernel(self.NUM_NON_KB_DIM), aRange)
 
         # kernels used for LSTD
-        self.kernelS = KernelOverKernel(ExponentialQuadraticKernel(3),
-                ExponentialQuadraticKernel(2))
-        self.kernelSA = KernelOverKernel(ExponentialQuadraticKernel(3 + 2),
-                ExponentialQuadraticKernel(2))
+        self.kernelS = KilobotKernel(self.NUM_NON_KB_DIM)
+        self.kernelSA = KilobotKernel(self.NUM_NON_KB_DIM + 2)
 
         self.lstd = LeastSquaresTD()
         self.reps = AC_REPS()
 
-        self.sDim = 1 + 2 + 2 * self.NUM_KILOBOTS
+        self.sDim = self.NUM_NON_KB_DIM + 2 * self.NUM_KILOBOTS
         self.S, self.A, self.R, self.S_ = empty((0, self.sDim)), empty((0, 2)),\
                 empty((0, 1)), empty((0, self.sDim))
 
@@ -57,16 +57,18 @@ class MazeLearner:
         self.goalReward = 1.0
         self.wallPunishment = 1.0
 
-        self.normalizeRepRows = False
+        self.numFeatures = 100
 
-        self.bwFactorSAOuter = 1.0
-        self.bwFactorSAInner = 1.0
+        self.bwFactorNonKbSA = 1.0
+        self.bwFactorKbSA = 1.0
 
-        self.bwFactorSOuter = 1.0
-        self.bwFactorSInner = 1.0
+        self.bwFactorNonKbS = 1.0
+        self.bwFactorKbS = 1.0
 
-        self.policy.bwFactorOuter = 1.0
-        self.policy.bwFactorInner = 1.0
+        self.numSamplesSubsetGP = 100
+
+        self.bwFactorNonKbGP = 1.0
+        self.bwFactorKbGP = 1.0
 
     def _sendPolicyModules(self):
         msg = {'message': 'sentPolicyModules',
@@ -116,10 +118,9 @@ class MazeLearner:
         # discard result
         self.socket.recv()
 
-    @staticmethod
-    def _getStateActionMatrix(S, A):
+    def _getStateActionMatrix(self, S, A):
         # states without kilobot positions + actions + kilobot positions
-        return c_[S[:, 0:3], A, S[:, 3:]]
+        return c_[S[:, 0:self.NUM_NON_KB_DIM], A, S[:, self.NUM_NON_KB_DIM:]]
 
     def _unpackSARS(self, SARS):
         return SARS[:, 0:self.sDim],\
@@ -127,31 +128,65 @@ class MazeLearner:
                SARS[:, (self.sDim + 2):(self.sDim + 3)],\
                SARS[:, (self.sDim + 3):(2 * self.sDim + 3)]
 
-    def _updateKernelParameters(self):
-        SA = MazeLearner._getStateActionMatrix(self.S, self.A)
+    def _reshapeKbPositions(self, X):
+        return c_[X.flat[0::2].T, X.flat[1::2].T]
 
-        self.MuSA = Helper.getRandomSubset(SA, 100)
-        self.MuS = Helper.getRandomSubset(self.S, 100)
+    def _updateKernelParameters(self, S, A, random=True, normalize=True):
+        SA = self._getStateActionMatrix(S, A)
 
-        #self.MuSA = Helper.getRepresentativeRows(SA, 100, self.normalizeRepRows)
-        #self.MuS = Helper.getRepresentativeRows(self.S, 100, self.normalizeRepRows)
+        if random:
+            self.MuS = Helper.getRandomSubset(S, self.numFeatures)
+            self.MuSA = Helper.getRandomSubset(SA, self.numFeatures)
+        else:
+            self.MuS = Helper.getRepresentativeRows(S, self.numFeatures, normalize)
+            self.MuSA = Helper.getRepresentativeRows(SA, self.numFeatures, normalize)
 
-        bwSAOuter = Helper.getBandwidth(self.MuSA[:, 0:(3 + 2)], 500,
-                self.bwFactorSAOuter)
+        # bandwidth for PHI_S
+        bwNonKbS = Helper.getBandwidth(self.MuS[:, 0:self.NUM_NON_KB_DIM],
+                500, self.bwFactorNonKbS)
 
-        kbPosSA = self.MuSA[:, (3 + 2):] # numSamples x 2 * numKilobots
-        kbPosSA = c_[kbPosSA.flat[0::2].T, kbPosSA.flat[1::2].T] # * x 2
-        bwSAInner = Helper.getBandwidth(kbPosSA, 500, self.bwFactorSAInner)
+        kbPosS = self._reshapeKbPositions(self.MuS[:, self.NUM_NON_KB_DIM:])
+        bwKbS = Helper.getBandwidth(kbPosS, 500, self.bwFactorKbS)
 
-        bwSOuter = Helper.getBandwidth(self.MuS[:, 0:3], 500,
-                self.bwFactorSOuter)
+        self.kernelS.setBandwidth(bwNonKbS, bwKbS)
 
-        kbPosS = self.MuS[:, 3:]
-        kbPosS = c_[kbPosS.flat[0::2].T, kbPosS.flat[1::2].T]
-        bwSInner = Helper.getBandwidth(kbPosS, 500, self.bwFactorSInner)
+        # bandwidth for PHI_SA
+        bwNonKbSA = Helper.getBandwidth(self.MuSA[:, 0:(self.NUM_NON_KB_DIM + 2)],
+                500, self.bwFactorNonKbSA)
 
-        self.kernelS.setBandwidth(bwSOuter, bwSInner)
-        self.kernelSA.setBandwidth(bwSAOuter, bwSAInner)
+        kbPosSA = self._reshapeKbPositions(self.MuSA[:, (self.NUM_NON_KB_DIM + 2):])
+        bwKbSA = Helper.getBandwidth(kbPosSA, 500, self.bwFactorKbSA)
+
+        self.kernelSA.setBandwidth(bwNonKbSA, bwKbSA)
+
+    def _getSubsetForGP(self, S, random=True, normalize=True):
+        Nsubset = min(self.numSamplesSubsetGP, S.shape[0])
+
+        if random:
+            return Helper.getRandomSubset(S, Nsubset)
+        else:
+            return Helper.getRepresentativeRows(S, Nsubset, normalize)
+
+    def _updateBandwidthsGP(self, Ssub):
+        bwNonKb = Helper.getBandwidth(Ssub[:, 0:self.NUM_NON_KB_DIM],
+                Ssub.shape[0], self.bwFactorNonKbGP)
+
+        kbPos = Ssub[:, self.NUM_NON_KB_DIM:]
+        bwKb = Helper.getBandwidth(self._reshapeKbPositions(kbPos),
+                Ssub.shape[0], self.bwFactorKbGP)
+
+        self.policy.kernel.setBandwidth(bwNonKb, bwKb)
+
+    def _getFeatureExpectation(self, S, N, MuSA):
+        SA = self._getStateActionMatrix(S, self.policy.sampleActions(S))
+
+        PHI = self.kernelSA.getGramMatrix(SA, MuSA)
+
+        for i in range(N - 1):
+            SA = self._getStateActionMatrix(S, self.policy.sampleActions(S))
+            PHI += self.kernelSA.getGramMatrix(SA, MuSA)
+
+        return PHI / N
 
     def connect(self):
         self.socket.bind('tcp://*:{}s'.format(self.port))
@@ -209,7 +244,7 @@ class MazeLearner:
 
         self.policy.GPMinVariance = 0.0
         self.policy.GPRegularizer = 0.005
-        self.policy.numSamplesSubset = 100
+        self.policy.numSamplesSubset = 500
 
         self.numLearnIt = numLearnIt
 
@@ -245,18 +280,18 @@ class MazeLearner:
 
             self.S, self.A, self.R, self.S_ = self._unpackSARS(SARS)
 
-            self._updateKernelParameters()
+            self._updateKernelParameters(self.S, self.A)
 
             self.PHI_S = self.kernelS.getGramMatrix(self.S, self.MuS)
 
-            SA = MazeLearner._getStateActionMatrix(self.S, self.A)
+            SA = self._getStateActionMatrix(self.S, self.A)
             self.PHI_SA = self.kernelSA.getGramMatrix(SA, self.MuSA)
 
             for j in range(numLearnIt):
+                t = time.time()
+
                 # LSTD to estimate Q function / Q(s,a) = phi(s, a).T * theta
-                self.PHI_SA_ = Helper.getFeatureExpectation(self.S_, 5,
-                        self.policy, self.kernelSA,
-                        MazeLearner._getStateActionMatrix, self.MuSA)
+                self.PHI_SA_ = self._getFeatureExpectation(self.S_, 5, self.MuSA)
                 self.theta = self.lstd.learnLSTD(self.PHI_SA, self.PHI_SA_, self.R)
 
                 # AC-REPS
@@ -264,10 +299,13 @@ class MazeLearner:
                 self.w = self.reps.computeWeighting(self.Q, self.PHI_S)
 
                 # GP
-                self.policy.train(self.S, self.A, self.w)
+                Ssub = self._getSubsetForGP(self.S)
+                self._updateBandwidthsGP(Ssub)
+                self.policy.train(self.S, self.A, self.w, Ssub)
 
                 self.it += 1
                 print('finished learning iteration {}'.format(self.it))
+                print('took: {}s'.format(time.time() - t))
 
                 # plot save results
                 #figV = self.getValueFunctionFigure()

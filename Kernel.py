@@ -5,6 +5,7 @@ from numexpr import evaluate as ev
 import pickle
 
 import time
+import matplotlib.pyplot as plt
 
 class Kernel:
     """
@@ -62,7 +63,7 @@ class ExponentialQuadraticKernel(Kernel):
     def getNumDimensions(self):
         return self.bw2.shape[1]
 
-    def getGramMatrix(self, A, B, K2=None):
+    def getGramMatrix(self, A, B, K2=None, w=None):
         Q = asmatrix(diagflat(1.0 / self.bw2))
 
         AQ = A * Q
@@ -73,7 +74,7 @@ class ExponentialQuadraticKernel(Kernel):
             K = (K - K.min()) / (K.max() - K.min())
             K2 = (K2 - K2.min()) / (K2.max() - K2.min())
 
-            K = 0.5 * K + 0.5 * K2 # TODO
+            K = (1 - w) * K + w * K2 # TODO
 
         K = ev('exp(-0.5 * K)')
 
@@ -87,24 +88,31 @@ class KilobotKernel(Kernel):
     def __init__(self, numNonKilobotDimensions):
         self.kernelNonKb = ExponentialQuadraticKernel(numNonKilobotDimensions)
         self.kernelKb = ExponentialQuadraticKernel(2)
+        self.weightNonKb = 0.5
 
     def setBandwidth(self, bwNonKb, bwKb):
         self.kernelNonKb.setBandwidth(bwNonKb)
         self.kernelKb.setBandwidth(bwKb)
 
+    def setWeighting(self, weightNonKb):
+        self.weightNonKb = weightNonKb
+
     def getSerializableDict(self):
         return {'type': 'KilobotKernel',
                 'kernelNonKb': self.kernelNonKb.getSerializableDict(),
-                'kernelKb': self.kernelKb.getSerializableDict()}
+                'kernelKb': self.kernelKb.getSerializableDict(),
+                'weightNonKb': self.weightNonKb}
 
     @staticmethod
     def fromSerializableDict(d):
         kernelNonKb = Kernel.fromSerializableDict(d['kernelNonKb'])
         kernelKb = Kernel.fromSerializableDict(d['kernelKb'])
+        weightNonKb = d['weightNonKb']
 
         k = KilobotKernel(1)
         k.kernelNonKb = kernelNonKb
         k.kernelKb = kernelKb
+        k.weightNonKb = weightNonKb
         return k
 
     def getGramMatrix(self, A, B):
@@ -130,6 +138,7 @@ class KilobotKernel(Kernel):
             Bre = reshape(B2[i, :], ((N, 2)))
             Km[i, :] = one * self.kernelKb.getGramMatrix(Bre, Bre) * one.T
 
+        # reshape kilobot positions to * x 2
         Are = c_[A2.flat[0::2].T, A2.flat[1::2].T]
         Bre = c_[B2.flat[0::2].T, B2.flat[1::2].T]
         Knm = self.kernelKb.getGramMatrix(Are, Bre)
@@ -142,7 +151,14 @@ class KilobotKernel(Kernel):
         K = (-2 * (S[N::N, N::N] + S[0:-1:N, 0:-1:N] -\
                    S[0:-1:N, N::N] - S[N::N, 0:-1:N]) + Kn + Km.T) / N2
 
-        return self.kernelNonKb.getGramMatrix(A1, B1, K)
+        if False: #A2.shape[0] != 1 and B2.shape[0] != 1:
+            plt.imshow(K)
+            plt.title('K({}, {})'.format(A2.shape, B2.shape))
+            plt.colorbar()
+            plt.show()
+            input('press key...')
+
+        return self.kernelNonKb.getGramMatrix(A1, B1, K, self.weightNonKb)
 
     def getGramDiag(self, A):
         return ones((A.shape[0], 1))

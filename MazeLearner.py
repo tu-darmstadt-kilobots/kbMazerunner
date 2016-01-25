@@ -1,6 +1,7 @@
 from numpy import *
 
 import matplotlib.pyplot as plt
+from matplotlib.pyplot import cm
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import Rectangle
 
@@ -25,14 +26,13 @@ class MazeLearner:
         self.socket = self.context.socket(PAIR)
         self.port = port
 
-        # s: obj.alpha light.x light.y kb.x1 kb.y1 ... kb.xn kb.yn
-        #    everything is relative to the object position
+        # s: light.x light.y kb.x1 kb.y1 ... kb.xn kb.yn
         # a: light movement (dx, dy)
         self.NUM_KILOBOTS = 4
-        self.NUM_NON_KB_DIM = 3
+        self.NUM_NON_KB_DIM = 2
 
         # initial random range for actions
-        aRange = array([[-0.1, 0.1], [-0.1, 0.1]])
+        aRange = array([[-0.015, 0.015], [-0.015, 0.015]])
         self.policy = SparseGPPolicy(KilobotKernel(self.NUM_NON_KB_DIM), aRange)
 
         # kernels used for LSTD
@@ -109,8 +109,6 @@ class MazeLearner:
                'numEpisodes': numEpisodes,
                'numStepsPerEpisode': numStepsPerEpisode,
                'stepsPerSec': stepsPerSec,
-               'goalReward': 0.0,
-               'wallPunishment': 0.0,
                'epsilon': 0.0,
                'useMean': True}
         self.socket.send(pickle.dumps(msg, protocol=2))
@@ -149,6 +147,7 @@ class MazeLearner:
         bwKbS = Helper.getBandwidth(kbPosS, 500, self.bwFactorKbS)
 
         self.kernelS.setBandwidth(bwNonKbS, bwKbS)
+        self.kernelS.setWeighting(self.weightNonKbS)
 
         # bandwidth for PHI_SA
         bwNonKbSA = Helper.getBandwidth(self.MuSA[:, 0:(self.NUM_NON_KB_DIM + 2)],
@@ -158,6 +157,7 @@ class MazeLearner:
         bwKbSA = Helper.getBandwidth(kbPosSA, 500, self.bwFactorKbSA)
 
         self.kernelSA.setBandwidth(bwNonKbSA, bwKbSA)
+        self.kernelSA.setWeighting(self.weightNonKbSA)
 
     def _getSubsetForGP(self, S, random=True, normalize=True):
         Nsubset = min(self.numSamplesSubsetGP, S.shape[0])
@@ -176,6 +176,7 @@ class MazeLearner:
                 Ssub.shape[0], self.bwFactorKbGP)
 
         self.policy.kernel.setBandwidth(bwNonKb, bwKb)
+        self.policy.kernel.setWeighting(self.weightNonKbGP)
 
     def _getFeatureExpectation(self, S, N, MuSA):
         SA = self._getStateActionMatrix(S, self.policy.sampleActions(S))
@@ -214,8 +215,6 @@ class MazeLearner:
     def saveParams(self, fileName):
         params = {'numEpisodes': self.numEpisodes,
                   'numStepsPerEpisode': self.numStepsPerEpisode,
-                  'goalReward': self.goalReward,
-                  'wallPunishment': self.wallPunishment,
                   'normalizeRepresentativeRows': self.normalizeRepRows,
                   'startEpsilon': self.startEpsilon,
                   'epsilonFactor': self.epsilonFactor,
@@ -238,13 +237,44 @@ class MazeLearner:
 
     def learn(self, savePrefix, numSampleIt, numLearnIt = 1,
             startEpsilon = 0.0, epsilonFactor = 1.0):
+
+        """ sampling """
+        self.numEpisodes = 50
+        self.numStepsPerEpisode = 50
+
+        self.stepsPerSec = 4096
+
+        """ LSDT """
         self.lstd.discountFactor = 0.95
 
+        factor = 1.0
+        factorKb = 1.0
+        weightNonKb = 1.0
+
+        self.bwFactorNonKbSA = factor
+        self.bwFactorKbSA = factorKb
+        self.weightNonKbSA = weightNonKb
+
+        self.bwFactorNonKbS = factor
+        self.bwFactorKbS = factorKb
+        self.weightNonKbS = weightNonKb
+
+        self.numFeatures = 100
+
+        """ REPS """
         self.reps.epsilonAction = 0.5
 
+
+        """ GP """
         self.policy.GPMinVariance = 0.0
-        self.policy.GPRegularizer = 0.005
-        self.policy.numSamplesSubset = 500
+        self.policy.GPRegularizer = 0.05
+
+        self.numSamplesSubsetGP = 100
+
+        self.bwFactorNonKbGP = factor
+        self.bwFactorKbGP = factorKb
+        self.weightNonKbGP = weightNonKb
+
 
         self.numLearnIt = numLearnIt
 
@@ -280,7 +310,11 @@ class MazeLearner:
 
             self.S, self.A, self.R, self.S_ = self._unpackSARS(SARS)
 
-            self._updateKernelParameters(self.S, self.A)
+            self._updateKernelParameters(self.S, self.A, random=True,
+                    normalize=True)
+            #MazeLearner.plotFeatures(self.MuS)
+            #input('press key...')
+
 
             self.PHI_S = self.kernelS.getGramMatrix(self.S, self.MuS)
 
@@ -298,8 +332,13 @@ class MazeLearner:
                 self.Q = self.PHI_SA * self.theta
                 self.w = self.reps.computeWeighting(self.Q, self.PHI_S)
 
+                # show weights for light positions
+                #plt.scatter(self.S[:, 0], self.S[:, 1], c=self.w.flat)
+                #plt.show()
+                #input('press key')
+
                 # GP
-                Ssub = self._getSubsetForGP(self.S)
+                Ssub = self._getSubsetForGP(self.S, random=True, normalize=True)
                 self._updateBandwidthsGP(Ssub)
                 self.policy.train(self.S, self.A, self.w, Ssub)
 
@@ -308,7 +347,10 @@ class MazeLearner:
                 print('took: {}s'.format(time.time() - t))
 
                 # plot save results
-                #figV = self.getValueFunctionFigure()
+                #figV = self.getValueFunctionFigure(100, 50, 4)
+                #figV.show()
+                #input('press key...')
+
                 #figP = self.getPolicyFigure(20, 10)
 
                 #if savePath != '':
@@ -323,12 +365,33 @@ class MazeLearner:
 
             gc.collect()
 
+    @staticmethod
+    def plotFeatures(X):
+        colors = cm.rainbow(linspace(0, 1, X.shape[0]))
+
+        for i, c in zip(range(X.shape[0]), colors):
+            L = asmatrix(X[i, 0:2])
+            KB = asmatrix(X[i, 2:])
+            KB = c_[KB.flat[0::2].T, KB.flat[1::2].T]
+
+            plt.plot(L[0, 0], L[0, 1], 'x', color=c, markersize=10)
+            plt.plot(KB[:, 0], KB[:, 1], 'o', color=c)
+
+        plt.show()
+
+
     def getValueFunctionFigure(self, stepsX = 100, stepsY = 50, N = 10):
         [X, Y] = meshgrid(linspace(0.0, 2.0, stepsX), linspace(0.0, 1.0, stepsY))
         X = X.flatten()
         Y = 1.0 - Y.flatten()
 
-        Srep = repeat(c_[X, Y], N, axis=0)
+        lightX = X
+        lightY = Y
+
+        # kilobots at light position
+        KB = c_[X, Y, X, Y, X, Y, X, Y]
+
+        Srep = repeat(c_[lightX, lightY, KB], N, axis=0)
         Arep = 0.05 * random.random((X.size * N, 2)) # TODO
         #Srep, Arep = self.policy.sampleActions(c_[X, Y], N)
 
@@ -341,26 +404,12 @@ class MazeLearner:
         fig = plt.figure()
         plt.imshow(V)
 
-        ax = plt.gca()
-
-        sx = stepsX / 2.0
-        sy = stepsY / 1.0
-
-        # wall near goal
-        ax.add_patch(Rectangle((0.49 * sx,  0.5 * sy), 0.01 * sx, 0.5 * sy,
-            facecolor='grey'))
-
-        # walls near start
-        ax.add_patch(Rectangle((0.99 * sx, 0.0), 0.01 * sx, 0.5 * sy,
-            facecolor='grey'))
-        ax.add_patch(Rectangle((1.00 * sx,  0.49 * sy), 0.5 * sx, 0.01 * sy,
-            facecolor='grey'))
-
         plt.colorbar()
         plt.title('value function, iteration {}'.format(self.it))
 
         return fig
 
+    """
     def getPolicyFigure(self, stepsX = 50, stepsY = 25):
         [X, Y] = meshgrid(linspace(0.0, 2.0, stepsX), linspace(0.0, 1.0, stepsY))
         X = X.flatten()
@@ -377,7 +426,7 @@ class MazeLearner:
         plt.quiver(X, Y, U, V)
         plt.title('policy, iteration {}'.format(self.it))
 
-        return fig
+        return fig"""
 
 learner = MazeLearner(2357)
 learner.connect()

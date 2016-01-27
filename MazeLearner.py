@@ -249,7 +249,7 @@ class MazeLearner:
 
         factor = 2.0
         factorKb = 2.0
-        weightNonKb = 1.0
+        weightNonKb = 0.5
 
         self.bwFactorNonKbSA = factor
         self.bwFactorKbSA = factorKb
@@ -266,7 +266,7 @@ class MazeLearner:
 
         """ GP """
         self.policy.GPMinVariance = 0.0
-        self.policy.GPRegularizer = 0.05
+        self.policy.GPRegularizer = 0.005
 
         self.numSamplesSubsetGP = 100
 
@@ -311,9 +311,6 @@ class MazeLearner:
 
             self._updateKernelParameters(self.S, self.A, random=True,
                     normalize=True)
-            #MazeLearner.plotFeatures(self.MuS)
-            #input('press key...')
-
 
             self.PHI_S = self.kernelS.getGramMatrix(self.S, self.MuS)
 
@@ -327,14 +324,17 @@ class MazeLearner:
                 self.PHI_SA_ = self._getFeatureExpectation(self.S_, 5, self.MuSA)
                 self.theta = self.lstd.learnLSTD(self.PHI_SA, self.PHI_SA_, self.R)
 
+                #MazeLearner.plotFeatures(self.MuS, self.theta)
+                #input('press key...')
+
                 # AC-REPS
                 self.Q = self.PHI_SA * self.theta
                 self.w = self.reps.computeWeighting(self.Q, self.PHI_S)
 
                 # show weights for light positions
-                #plt.scatter(self.S[:, 0], self.S[:, 1], c=self.w.flat)
-                #plt.show()
-                #input('press key')
+                plt.scatter(self.S[:, 0], self.S[:, 1], c=self.Q.flat)
+                plt.show()
+                input('press key...')
 
                 # GP
                 Ssub = self._getSubsetForGP(self.S, random=True, normalize=True)
@@ -348,7 +348,7 @@ class MazeLearner:
                 # plot save results
                 figV = self.getValueFunctionFigure(100, 50, 4)
                 figV.show()
-                input('press key')
+                input('press key...')
 
                 #figP = self.getPolicyFigure(20, 10)
 
@@ -365,24 +365,29 @@ class MazeLearner:
             gc.collect()
 
     @staticmethod
-    def plotFeatures(X):
-        colors = cm.rainbow(linspace(0, 1, X.shape[0]))
+    def plotFeatures(X, theta):
+        #colors = cm.rainbow(linspace(0, 1, X.shape[0]))
 
-        for i, c in zip(range(X.shape[0]), colors):
-            L = asmatrix(X[i, 0:2])
-            KB = asmatrix(X[i, 2:])
-            KB = c_[KB.flat[0::2].T, KB.flat[1::2].T]
+        #for i, c in zip(range(X.shape[0]), colors):
+         #   L = asmatrix(X[i, 0:2])
+          #  KB = asmatrix(X[i, 2:])
+           # KB = c_[KB.flat[0::2].T, KB.flat[1::2].T]
 
-            plt.plot(L[0, 0], L[0, 1], 'x', color=c, markersize=10)
-            plt.plot(KB[:, 0], KB[:, 1], 'o', color=c)
+            #plt.plot(L[0, 0], L[0, 1], 'x', color=c, markersize=10)
+            #plt.plot(KB[:, 0], KB[:, 1], 'o', color=c)
 
+        plt.scatter(X[:, 0], X[:, 1], c=asarray(theta).flat, s=60)
+        plt.colorbar()
         plt.show()
 
 
     def getValueFunctionFigure(self, stepsX = 100, stepsY = 50, N = 10):
-        [X, Y] = meshgrid(linspace(-2.0, 4.0, stepsX), linspace(-2.0, 3.0, stepsY))
+        [X, Y] = meshgrid(linspace(0.0, 2.0, stepsX), linspace(0.0, 1.0, stepsY))
         X = X.flatten()
         Y = 1.0 - Y.flatten()
+
+        X -= 1.0
+        Y -= 0.5
 
         lightX = X
         lightY = Y
@@ -392,7 +397,7 @@ class MazeLearner:
 
         Srep = repeat(c_[lightX, lightY, KB], N, axis=0)
         Arep = 0.05 * random.random((X.size * N, 2)) # TODO
-        #Srep, Arep = self.policy.sampleActions(c_[X, Y], N)
+        #Arep = self.policy.sampleActions(Srep)
 
         SA = self._getStateActionMatrix(Srep, Arep)
         PHI_SA_rep = self.kernelSA.getGramMatrix(SA, self.MuSA)

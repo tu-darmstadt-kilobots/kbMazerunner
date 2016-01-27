@@ -71,10 +71,10 @@ class ExponentialQuadraticKernel(Kernel):
         K -= 2.0 * AQ * B.T
 
         if K2 is not None:
-            K = (K - K.min()) / (K.max() - K.min())
-            K2 = (K2 - K2.min()) / (K2.max() - K2.min())
+            #K = (K - K.min()) / (K.max() - K.min())
+            #K2 = (K2 - K2.min()) / (K2.max() - K2.min())
 
-            K = (1 - w) * K + w * K2 # TODO
+            K = w * K + (1 - w) * K2 # TODO
 
         K = ev('exp(-0.5 * K)')
 

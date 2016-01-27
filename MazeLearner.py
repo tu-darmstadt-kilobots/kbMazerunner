@@ -244,11 +244,11 @@ class MazeLearner:
 
         self.stepsPerSec = 4096
 
-        """ LSDT """
+        """ LSTD """
         self.lstd.discountFactor = 0.95
 
-        factor = 1.0
-        factorKb = 1.0
+        factor = 2.0
+        factorKb = 2.0
         weightNonKb = 1.0
 
         self.bwFactorNonKbSA = factor
@@ -263,7 +263,6 @@ class MazeLearner:
 
         """ REPS """
         self.reps.epsilonAction = 0.5
-
 
         """ GP """
         self.policy.GPMinVariance = 0.0
@@ -347,9 +346,9 @@ class MazeLearner:
                 print('took: {}s'.format(time.time() - t))
 
                 # plot save results
-                #figV = self.getValueFunctionFigure(100, 50, 4)
-                #figV.show()
-                #input('press key...')
+                figV = self.getValueFunctionFigure(100, 50, 4)
+                figV.show()
+                input('press key')
 
                 #figP = self.getPolicyFigure(20, 10)
 
@@ -381,7 +380,7 @@ class MazeLearner:
 
 
     def getValueFunctionFigure(self, stepsX = 100, stepsY = 50, N = 10):
-        [X, Y] = meshgrid(linspace(0.0, 2.0, stepsX), linspace(0.0, 1.0, stepsY))
+        [X, Y] = meshgrid(linspace(-2.0, 4.0, stepsX), linspace(-2.0, 3.0, stepsY))
         X = X.flatten()
         Y = 1.0 - Y.flatten()
 
@@ -395,11 +394,17 @@ class MazeLearner:
         Arep = 0.05 * random.random((X.size * N, 2)) # TODO
         #Srep, Arep = self.policy.sampleActions(c_[X, Y], N)
 
-        PHI_SA_rep = self.kernelSA.getGramMatrix(c_[Srep, Arep], self.MuSA)
+        SA = self._getStateActionMatrix(Srep, Arep)
+        PHI_SA_rep = self.kernelSA.getGramMatrix(SA, self.MuSA)
         Qrep = PHI_SA_rep * self.theta
 
         # max over each N rows
         V = asarray(Qrep).reshape(-1, N, Qrep.shape[1]).max(1).reshape(stepsY, stepsX)
+
+        #S = c_[X, Y, KB]
+        #A = c_[0 * ones((S.shape[0], 1)), 0.01 * ones((S.shape[0], 1))]
+
+        #PHI_SA = self.kernelSA.getGramMatrix(c_[S, A], self.MuSA)
 
         fig = plt.figure()
         plt.imshow(V)

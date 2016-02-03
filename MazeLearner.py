@@ -9,9 +9,12 @@ import os
 import gc
 import pprint
 import time
+import sys
 
 from zmq import Context, PAIR
 import pickle
+
+sys.path.append('..')
 
 from Helper import Helper
 from LeastSquaresTD import LeastSquaresTD
@@ -54,9 +57,6 @@ class MazeLearner:
 
         self.stepsPerSec = 4096
 
-        self.goalReward = 1.0
-        self.wallPunishment = 1.0
-
         self.numFeatures = 100
 
         self.bwFactorNonKbSA = 1.0
@@ -86,8 +86,6 @@ class MazeLearner:
                'numEpisodes': self.numEpisodes,
                'numStepsPerEpisode': self.numStepsPerEpisode,
                'stepsPerSec': self.stepsPerSec,
-               'goalReward': self.goalReward,
-               'wallPunishment': self.wallPunishment,
                'epsilon': self.epsilon,
                'useMean': False}
         self.socket.send(pickle.dumps(msg, protocol=2))
@@ -113,8 +111,9 @@ class MazeLearner:
                'useMean': True}
         self.socket.send(pickle.dumps(msg, protocol=2))
 
-        # discard result
-        self.socket.recv()
+        msg = pickle.loads(self.socket.recv(), encoding='latin1')
+        _, _, R, _ = msg['samples']
+        return R.sum()
 
     def _getStateActionMatrix(self, S, A):
         # states without kilobot positions + actions + kilobot positions
@@ -239,16 +238,16 @@ class MazeLearner:
             startEpsilon = 0.0, epsilonFactor = 1.0):
 
         """ sampling """
-        self.numEpisodes = 50
-        self.numStepsPerEpisode = 50
+        self.numEpisodes = 25
+        self.numStepsPerEpisode = 100
 
         self.stepsPerSec = 4096
 
         """ LSTD """
-        self.lstd.discountFactor = 0.95
+        self.lstd.discountFactor = 0.99
 
-        factor = 2.0
-        factorKb = 2.0
+        factor = 1.0
+        factorKb = 1.0
         weightNonKb = 0.5
 
         self.bwFactorNonKbSA = factor
@@ -259,7 +258,7 @@ class MazeLearner:
         self.bwFactorKbS = factorKb
         self.weightNonKbS = weightNonKb
 
-        self.numFeatures = 100
+        self.numFeatures = 200
 
         """ REPS """
         self.reps.epsilonAction = 0.5
@@ -268,7 +267,7 @@ class MazeLearner:
         self.policy.GPMinVariance = 0.0
         self.policy.GPRegularizer = 0.005
 
-        self.numSamplesSubsetGP = 100
+        self.numSamplesSubsetGP = 200
 
         self.bwFactorNonKbGP = factor
         self.bwFactorKbGP = factorKb
@@ -304,7 +303,7 @@ class MazeLearner:
 
             # only keep 5000 samples
             SARS = c_[self.S, self.A, self.R, self.S_]
-            SARS = Helper.getRandomSubset(SARS, 5000)
+            SARS = Helper.getRandomSubset(SARS, 10000)
             #SARS = Helper.getRepresentativeRows(SARS, 5000, self.normalizeRepRows)
 
             self.S, self.A, self.R, self.S_ = self._unpackSARS(SARS)
@@ -332,9 +331,9 @@ class MazeLearner:
                 self.w = self.reps.computeWeighting(self.Q, self.PHI_S)
 
                 # show weights for light positions
-                plt.scatter(self.S[:, 0], self.S[:, 1], c=self.Q.flat)
-                plt.show()
-                input('press key...')
+                #plt.scatter(self.S[:, 0], self.S[:, 1], c=self.Q.flat)
+                #plt.show()
+                #input('press key...')
 
                 # GP
                 Ssub = self._getSubsetForGP(self.S, random=True, normalize=True)
@@ -346,11 +345,13 @@ class MazeLearner:
                 print('took: {}s'.format(time.time() - t))
 
                 # plot save results
-                figV = self.getValueFunctionFigure(100, 50, 4)
-                figV.show()
-                input('press key...')
+                #figV = self.getValueFunctionFigure(100, 50, 4)
+                #figV.show()
+                #input('press key...')
 
-                #figP = self.getPolicyFigure(20, 10)
+                figP = self.getPolicyFigure(50, 25)
+                figP.show()
+                input('press key...')
 
                 #if savePath != '':
                 #    figV.savefig(os.path.join(savePath, 'V_{}.svg'.format(self.it)))
@@ -419,13 +420,19 @@ class MazeLearner:
 
         return fig
 
-    """
     def getPolicyFigure(self, stepsX = 50, stepsY = 25):
-        [X, Y] = meshgrid(linspace(0.0, 2.0, stepsX), linspace(0.0, 1.0, stepsY))
+        [X, Y] = meshgrid(linspace(-0.5, 0.5, stepsX), linspace(-0.25, 0.25, stepsY))
         X = X.flatten()
         Y = Y.flatten()
 
-        A = asarray(self.policy.getMeanAction(c_[X, Y]))
+        lightX = X
+        lightY = Y
+        alpha = zeros(size(lightX))
+
+        # kilobots at light position
+        KB = c_[X, Y, X, Y, X, Y, X, Y]
+
+        A = asarray(self.policy.getMeanAction(c_[lightX, lightY, KB]))
         A /= linalg.norm(A, axis=1).reshape((A.shape[0], 1))
 
         U = A[:, 0]
@@ -433,10 +440,14 @@ class MazeLearner:
 
         fig = plt.figure()
 
+        # draw the object
+        ax = plt.gca()
+        ax.add_patch(Rectangle((-0.075, -0.075), 0.15, 0.15, facecolor='grey'))
+
         plt.quiver(X, Y, U, V)
         plt.title('policy, iteration {}'.format(self.it))
 
-        return fig"""
+        return fig
 
 learner = MazeLearner(2357)
 learner.connect()

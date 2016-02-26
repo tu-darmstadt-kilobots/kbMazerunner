@@ -1,3 +1,9 @@
+"""
+    Multiple Kilobots move directly to the light.
+    They learn to push an object in a single direction.
+    The light is moved based on a policy provided by this learner.
+"""
+
 from numpy import *
 
 import matplotlib.pyplot as plt
@@ -14,8 +20,6 @@ import sys
 from zmq import Context, PAIR
 import pickle
 
-sys.path.append('..')
-
 from Helper import Helper
 from LeastSquaresTD import LeastSquaresTD
 from AC_REPS import AC_REPS
@@ -31,8 +35,7 @@ class MazeLearner:
 
         # s: light.x light.y kb.x1 kb.y1 ... kb.xn kb.yn
         # a: light movement (dx, dy)
-        self.NUM_KILOBOTS = 4
-        self.NUM_NON_KB_DIM = 3
+        self.NUM_NON_KB_DIM = 2
 
         # initial random range for actions
         aRange = array([[-0.015, 0.015], [-0.015, 0.015]])
@@ -45,37 +48,14 @@ class MazeLearner:
         self.lstd = LeastSquaresTD()
         self.reps = AC_REPS()
 
-        self.sDim = self.NUM_NON_KB_DIM + 2 * self.NUM_KILOBOTS
-        self.S, self.A, self.R, self.S_ = empty((0, self.sDim)), empty((0, 2)),\
-                empty((0, 1)), empty((0, self.sDim))
-
         self.it = 0
-
-        # default parameters
-        self.numEpisodes = 60
-        self.numStepsPerEpisode = 40
-
-        self.stepsPerSec = 4096
-
-        self.numFeatures = 100
-
-        self.bwFactorNonKbSA = 1.0
-        self.bwFactorKbSA = 1.0
-
-        self.bwFactorNonKbS = 1.0
-        self.bwFactorKbS = 1.0
-
-        self.numSamplesSubsetGP = 100
-
-        self.bwFactorNonKbGP = 1.0
-        self.bwFactorKbGP = 1.0
 
     def _sendPolicyModules(self):
         msg = {'message': 'sentPolicyModules',
                'modules': [
-                   ('Helper.py', open('../Helper.py').read()),
-                   ('Kernel.py', open('../Kernel.py').read()),
-                   ('SparseGPPolicy.py', open('../SparseGPPolicy.py').read())
+                   ('Helper.py', open('Helper.py').read()),
+                   ('Kernel.py', open('Kernel.py').read()),
+                   ('SparseGPPolicy.py', open('SparseGPPolicy.py').read())
                    ],
                'policyModule': 'SparseGPPolicy'}
         self.socket.send(pickle.dumps(msg, protocol=2))
@@ -83,11 +63,11 @@ class MazeLearner:
     def _getSamples(self):
         msg = {'message': 'getSamples',
                'policyDict': self.policy.getSerializableDict(),
+               'objectShape': self.objectShape,
+               'numKilobots': self.numKilobots,
                'numEpisodes': self.numEpisodes,
                'numStepsPerEpisode': self.numStepsPerEpisode,
                'stepsPerSec': self.stepsPerSec,
-               'goalReward': self.goalReward,
-               'wallPunishment': self.wallPunishment,
                'epsilon': self.epsilon,
                'useMean': False}
         self.socket.send(pickle.dumps(msg, protocol=2))
@@ -98,14 +78,12 @@ class MazeLearner:
         else:
             return msg['samples']
 
-    """
-        for now just execute the mean policy to see how good it looks
-        can later be done automatically
-    """
-    def testPolicy(self, numEpisodes = 100, numStepsPerEpisode = 50,
-            stepsPerSec = 8):
+    def testPolicy(self, objectShape = 'quad', numKilobots = 4,
+            numEpisodes = 100, numStepsPerEpisode = 50, stepsPerSec = 8):
         msg = {'message': 'getSamples',
                'policyDict': self.policy.getSerializableDict(),
+               'objectShape': objectShape,
+               'numKilobots': numKilobots,
                'numEpisodes': numEpisodes,
                'numStepsPerEpisode': numStepsPerEpisode,
                'stepsPerSec': stepsPerSec,
@@ -113,8 +91,9 @@ class MazeLearner:
                'useMean': True}
         self.socket.send(pickle.dumps(msg, protocol=2))
 
-        # discard result
-        self.socket.recv()
+        msg = pickle.loads(self.socket.recv(), encoding='latin1')
+        _, _, R, _ = msg['samples']
+        return R.sum()
 
     def _getStateActionMatrix(self, S, A):
         # states without kilobot positions + actions + kilobot positions
@@ -139,22 +118,26 @@ class MazeLearner:
             self.MuS = Helper.getRepresentativeRows(S, self.numFeatures, normalize)
             self.MuSA = Helper.getRepresentativeRows(SA, self.numFeatures, normalize)
 
+        NUM_SAMPLES_FOR_BW_ESTIMATE = 500
+
         # bandwidth for PHI_S
         bwNonKbS = Helper.getBandwidth(self.MuS[:, 0:self.NUM_NON_KB_DIM],
-                500, self.bwFactorNonKbS)
+                NUM_SAMPLES_FOR_BW_ESTIMATE, self.bwFactorNonKbS)
 
         kbPosS = self._reshapeKbPositions(self.MuS[:, self.NUM_NON_KB_DIM:])
-        bwKbS = Helper.getBandwidth(kbPosS, 500, self.bwFactorKbS)
+        bwKbS = Helper.getBandwidth(kbPosS, NUM_SAMPLES_FOR_BW_ESTIMATE,
+                self.bwFactorKbS)
 
         self.kernelS.setBandwidth(bwNonKbS, bwKbS)
         self.kernelS.setWeighting(self.weightNonKbS)
 
         # bandwidth for PHI_SA
         bwNonKbSA = Helper.getBandwidth(self.MuSA[:, 0:(self.NUM_NON_KB_DIM + 2)],
-                500, self.bwFactorNonKbSA)
+                NUM_SAMPLES_FOR_BW_ESTIMATE, self.bwFactorNonKbSA)
 
         kbPosSA = self._reshapeKbPositions(self.MuSA[:, (self.NUM_NON_KB_DIM + 2):])
-        bwKbSA = Helper.getBandwidth(kbPosSA, 500, self.bwFactorKbSA)
+        bwKbSA = Helper.getBandwidth(kbPosSA, NUM_SAMPLES_FOR_BW_ESTIMATE,
+                self.bwFactorKbSA)
 
         self.kernelSA.setBandwidth(bwNonKbSA, bwKbSA)
         self.kernelSA.setWeighting(self.weightNonKbSA)
@@ -197,6 +180,8 @@ class MazeLearner:
     def savePolicyAndSamples(self, fileName):
         d = self.policy.getSerializableDict()
         d['SARS'] = c_[self.S, self.A, self.R, self.S_]
+        d['numIt'] = self.it
+        d['sDim'] = self.sDim
 
         s = pickle.dumps(d)
         with open(fileName, 'wb') as f:
@@ -209,28 +194,43 @@ class MazeLearner:
 
         self.policy = SparseGPPolicy.fromSerializableDict(d)
 
+        self.it = d['numIt']
+        self.sDim = d['sDim']
+
         SARS = d['SARS']
         self.S, self.A, self.R, self.S_ = self._unpackSARS(SARS)
 
     def saveParams(self, fileName):
-        params = {'numEpisodes': self.numEpisodes,
-                  'numStepsPerEpisode': self.numStepsPerEpisode,
-                  'normalizeRepresentativeRows': self.normalizeRepRows,
-                  'startEpsilon': self.startEpsilon,
-                  'epsilonFactor': self.epsilonFactor,
-                  'numLearnIterations': self.numLearnIt,
-                  'lstd.bwFactorSAOuter': self.bwFactorSAOuter,
-                  'lstd.bwFactorSAInner': self.bwFactorSAInner,
-                  'lstd.bwFactorSOuter': self.bwFactorSOuter,
-                  'lstd.bwFactorSInner': self.bwFactorSInner,
-                  'lstd.discountFactor': self.lstd.discountFactor,
-                  'reps.bwFactorS': self.bwFactorS,
-                  'reps.epsilonAction': self.reps.epsilonAction,
-                  'gp.MinVariance': self.policy.GPMinVariance,
-                  'gp.Regularizer': self.policy.GPRegularizer,
-                  'gp.bwFactorOuter': self.policy.bwFactorOuter,
-                  'gp.bwFactorInner': self.policy.bwFactorInner
-                  }
+        params = {
+            'general': {
+                'numLearnIt': self.numLearnIt,
+                'startEpsilon': self.startEpsilon,
+                'epsilonFactor': self.epsilonFactor},
+            'sampling': {
+                'objectShape': self.objectShape,
+                'numKilobots': self.numKilobots,
+                'numEpisodes': self.numEpisodes,
+                'numStepsPerEpisode': self.numStepsPerEpisode},
+            'LSTD': {
+                'discountFactor': self.lstd.discountFactor,
+                'numFeatures': self.numFeatures,
+                'S': {
+                    'bwNonKb': self.bwFactorNonKbS,
+                    'bwKb': self.bwFactorKbS,
+                    'weightNonKb': self.weightNonKbS},
+                'SA': {
+                    'bwNonKb': self.bwFactorNonKbSA,
+                    'bwKb': self.bwFactorKbSA,
+                    'weightNonKb': self.weightNonKbSA}},
+            'REPS': {
+                'epsilonAction': self.reps.epsilonAction},
+            'GP': {
+                'minVariance': self.policy.GPMinVariance,
+                'regularizer': self.policy.GPRegularizer,
+                'numSamplesSubset': self.numSamplesSubsetGP,
+                'bwNonKb': self.bwFactorNonKbGP,
+                'bwKb': self.bwFactorKbGP,
+                'weightNonKb': self.weightNonKbGP}}
 
         with open(fileName, 'w') as f:
             f.write(pprint.pformat(params, width=1))
@@ -239,6 +239,8 @@ class MazeLearner:
             startEpsilon = 0.0, epsilonFactor = 1.0):
 
         """ sampling """
+        self.objectShape = 'quad'
+        self.numKilobots = 4
         self.numEpisodes = 25
         self.numStepsPerEpisode = 100
 
@@ -247,8 +249,8 @@ class MazeLearner:
         """ LSTD """
         self.lstd.discountFactor = 0.99
 
-        factor = 1.5
-        factorKb = 1.5
+        factor = 1.0
+        factorKb = 1.0
         weightNonKb = 0.5
 
         self.bwFactorNonKbSA = factor
@@ -266,7 +268,7 @@ class MazeLearner:
 
         """ GP """
         self.policy.GPMinVariance = 0.0
-        self.policy.GPRegularizer = 0.005
+        self.policy.GPRegularizer = 0.05
 
         self.numSamplesSubsetGP = 200
 
@@ -274,6 +276,10 @@ class MazeLearner:
         self.bwFactorKbGP = factorKb
         self.weightNonKbGP = weightNonKb
 
+
+        self.sDim = self.NUM_NON_KB_DIM + 2 * self.numKilobots
+        self.S, self.A, self.R, self.S_ = empty((0, self.sDim)), empty((0, 2)),\
+                empty((0, 1)), empty((0, self.sDim))
 
         self.numLearnIt = numLearnIt
 
@@ -290,7 +296,6 @@ class MazeLearner:
 
             self.saveParams(os.path.join(savePath, 'params'))
 
-
         for i in range(numSampleIt):
             # get new samples
             St, At, Rt, S_t = self._getSamples()
@@ -302,10 +307,9 @@ class MazeLearner:
             self.R = r_[self.R, Rt]
             self.S_ = r_[self.S_, S_t]
 
-            # only keep 5000 samples
+            # only keep 10000 samples
             SARS = c_[self.S, self.A, self.R, self.S_]
-            SARS = Helper.getRandomSubset(SARS, 5000)
-            #SARS = Helper.getRepresentativeRows(SARS, 5000, self.normalizeRepRows)
+            SARS = Helper.getRandomSubset(SARS, 10000)
 
             self.S, self.A, self.R, self.S_ = self._unpackSARS(SARS)
 
@@ -324,17 +328,9 @@ class MazeLearner:
                 self.PHI_SA_ = self._getFeatureExpectation(self.S_, 5, self.MuSA)
                 self.theta = self.lstd.learnLSTD(self.PHI_SA, self.PHI_SA_, self.R)
 
-                #MazeLearner.plotFeatures(self.MuS, self.theta)
-                #input('press key...')
-
                 # AC-REPS
                 self.Q = self.PHI_SA * self.theta
                 self.w = self.reps.computeWeighting(self.Q, self.PHI_S)
-
-                # show weights for light positions
-                #plt.scatter(self.S[:, 0], self.S[:, 1], c=self.Q.flat)
-                #plt.show()
-                #input('press key...')
 
                 # GP
                 Ssub = self._getSubsetForGP(self.S, random=True, normalize=True)
@@ -345,61 +341,38 @@ class MazeLearner:
                 print('finished learning iteration {}'.format(self.it))
                 print('took: {}s'.format(time.time() - t))
 
-                # plot save results
-                #figV = self.getValueFunctionFigure(100, 50, 4)
-                #figV.show()
-                #input('press key...')
+                # save results
+                if savePath != '':
+                    figV = self.getValueFunctionFigure(50, 25, 4)
+                    figP = self.getPolicyFigure(50, 25)
 
-                #figP = self.getPolicyFigure(50, 25)
-                #figP.show()
-                #input('press key...')
+                    figV.savefig(os.path.join(savePath, 'V_{}.svg'.format(self.it)))
+                    figP.savefig(os.path.join(savePath, 'P_{}.svg'.format(self.it)))
 
-                #if savePath != '':
-                #    figV.savefig(os.path.join(savePath, 'V_{}.svg'.format(self.it)))
-                #    figP.savefig(os.path.join(savePath, 'P_{}.svg'.format(self.it)))
+                    self.savePolicyAndSamples(os.path.join(savePath,
+                        'policy_samples_{}'.format(self.it)))
 
-                #if self.it % 5 == 0:
-                #    self.savePolicyAndSamples(os.path.join(savePath,
-                #        'policy_samples_{}'.format(self.it)))
+                    plt.close(figV)
+                    plt.close(figP)
 
             self.epsilon *= self.epsilonFactor
 
             gc.collect()
 
-    @staticmethod
-    def plotFeatures(X, theta):
-        #colors = cm.rainbow(linspace(0, 1, X.shape[0]))
-
-        #for i, c in zip(range(X.shape[0]), colors):
-         #   L = asmatrix(X[i, 0:2])
-          #  KB = asmatrix(X[i, 2:])
-           # KB = c_[KB.flat[0::2].T, KB.flat[1::2].T]
-
-            #plt.plot(L[0, 0], L[0, 1], 'x', color=c, markersize=10)
-            #plt.plot(KB[:, 0], KB[:, 1], 'o', color=c)
-
-        plt.scatter(X[:, 0], X[:, 1], c=asarray(theta).flat, s=60)
-        plt.colorbar()
-        plt.show()
-
-
-    def getValueFunctionFigure(self, stepsX = 100, stepsY = 50, N = 10):
-        [X, Y] = meshgrid(linspace(0.0, 2.0, stepsX), linspace(0.0, 1.0, stepsY))
+    def getValueFunctionFigure(self, stepsX = 50, stepsY = 25, N = 4):
+        [X, Y] = meshgrid(linspace(-0.5, 0.5, stepsX), linspace(-0.25, 0.25, stepsY))
         X = X.flatten()
-        Y = 1.0 - Y.flatten()
-
-        X -= 1.0
-        Y -= 0.5
+        Y = -Y.flatten()
 
         lightX = X
         lightY = Y
+        alpha = zeros(size(lightX))
 
         # kilobots at light position
-        KB = c_[X, Y, X, Y, X, Y, X, Y]
+        KB = tile(c_[X, Y], [1, self.numKilobots])
 
         Srep = repeat(c_[lightX, lightY, KB], N, axis=0)
-        Arep = 0.05 * random.random((X.size * N, 2)) # TODO
-        #Arep = self.policy.sampleActions(Srep)
+        Arep = 0.05 * random.random((X.size * N, 2))
 
         SA = self._getStateActionMatrix(Srep, Arep)
         PHI_SA_rep = self.kernelSA.getGramMatrix(SA, self.MuSA)
@@ -407,11 +380,6 @@ class MazeLearner:
 
         # max over each N rows
         V = asarray(Qrep).reshape(-1, N, Qrep.shape[1]).max(1).reshape(stepsY, stepsX)
-
-        #S = c_[X, Y, KB]
-        #A = c_[0 * ones((S.shape[0], 1)), 0.01 * ones((S.shape[0], 1))]
-
-        #PHI_SA = self.kernelSA.getGramMatrix(c_[S, A], self.MuSA)
 
         fig = plt.figure()
         plt.imshow(V)
@@ -431,9 +399,9 @@ class MazeLearner:
         alpha = zeros(size(lightX))
 
         # kilobots at light position
-        KB = c_[X, Y, X, Y, X, Y, X, Y]
+        KB = tile(c_[X, Y], [1, self.numKilobots])
 
-        A = asarray(self.policy.getMeanAction(c_[lightX, lightY, alpha, KB]))
+        A = asarray(self.policy.getMeanAction(c_[lightX, lightY, KB]))
         A /= linalg.norm(A, axis=1).reshape((A.shape[0], 1))
 
         U = A[:, 0]

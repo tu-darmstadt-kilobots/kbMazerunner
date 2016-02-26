@@ -71,10 +71,7 @@ class ExponentialQuadraticKernel(Kernel):
         K -= 2.0 * AQ * B.T
 
         if K2 is not None:
-            #K = (K - K.min()) / (K.max() - K.min())
-            #K2 = (K2 - K2.min()) / (K2.max() - K2.min())
-
-            K = w * K + (1 - w) * K2 # TODO
+            K = w * K + (1 - w) * K2
 
         K = ev('exp(-0.5 * K)')
 
@@ -124,19 +121,21 @@ class KilobotKernel(Kernel):
         A2 = A[:, dim1:]
         B2 = B[:, dim1:]
 
-        N = A2.shape[1] / 2 # number of kilobots
-        one = ones((1, N))
-        N2 = N * N
+        NA = A2.shape[1] / 2 # number of kilobots in A
+        NB = B2.shape[1] / 2 # number of kilobots in B
+
+        oneA = ones((1, NA))
+        oneB = ones((1, NB))
 
         Kn = empty((A2.shape[0], 1))
         for i in range(A2.shape[0]):
-            Are = reshape(A2[i, :], ((N, 2)))
-            Kn[i, :] = one * self.kernelKb.getGramMatrix(Are, Are) * one.T
+            Are = reshape(A2[i, :], ((NA, 2)))
+            Kn[i, :] = oneA * self.kernelKb.getGramMatrix(Are, Are) * oneA.T
 
         Km = empty((B2.shape[0], 1))
         for i in range(B2.shape[0]):
-            Bre = reshape(B2[i, :], ((N, 2)))
-            Km[i, :] = one * self.kernelKb.getGramMatrix(Bre, Bre) * one.T
+            Bre = reshape(B2[i, :], ((NB, 2)))
+            Km[i, :] = oneB * self.kernelKb.getGramMatrix(Bre, Bre) * oneB.T
 
         # reshape kilobot positions to * x 2
         Are = c_[A2.flat[0::2].T, A2.flat[1::2].T]
@@ -146,17 +145,11 @@ class KilobotKernel(Kernel):
         # pad left and top with zeros
         Knm = c_[zeros((Knm.shape[0] + 1, 1)), r_[zeros((1, Knm.shape[1])), Knm]]
 
-        # sum over all NxN submatrices using a summed area table (S)
+        # sum over all NAxNB submatrices using the summed area table S
         S = Knm.cumsum(axis=0).cumsum(axis=1)
-        K = (-2 * (S[N::N, N::N] + S[0:-1:N, 0:-1:N] -\
-                   S[0:-1:N, N::N] - S[N::N, 0:-1:N]) + Kn + Km.T) / N2
-
-        if False: #A2.shape[0] != 1 and B2.shape[0] != 1:
-            plt.imshow(K)
-            plt.title('K({}, {})'.format(A2.shape, B2.shape))
-            plt.colorbar()
-            plt.show()
-            input('press key...')
+        K = Kn / (NA * NA) + Km.T / (NB * NB) - \
+                2.0 * (S[NA::NA, NB::NB] + S[0:-1:NA, 0:-1:NB] -\
+                       S[0:-1:NA, NB::NB] - S[NA::NA, 0:-1:NB]) / (NA * NB)
 
         return self.kernelNonKb.getGramMatrix(A1, B1, K, self.weightNonKb)
 

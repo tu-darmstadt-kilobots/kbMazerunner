@@ -38,8 +38,9 @@ class MazeLearner:
         self.NUM_NON_KB_DIM = 2
 
         # initial random range for actions
-        aRange = array([[-0.015, 0.015], [-0.015, 0.015]])
-        self.policy = SparseGPPolicy(KilobotKernel(self.NUM_NON_KB_DIM), aRange)
+        self.aRange = array([[-0.015, 0.015], [-0.015, 0.015]])
+        self.policy = SparseGPPolicy(KilobotKernel(self.NUM_NON_KB_DIM),
+                self.aRange)
 
         # kernels used for LSTD
         self.kernelS = KilobotKernel(self.NUM_NON_KB_DIM)
@@ -49,6 +50,7 @@ class MazeLearner:
         self.reps = AC_REPS()
 
         self.it = 0
+        self.S = None
 
     def _sendPolicyModules(self):
         msg = {'message': 'sentPolicyModules',
@@ -235,8 +237,8 @@ class MazeLearner:
         with open(fileName, 'w') as f:
             f.write(pprint.pformat(params, width=1))
 
-    def learn(self, savePrefix, numSampleIt, numLearnIt = 1,
-            startEpsilon = 0.0, epsilonFactor = 1.0):
+    def learn(self, savePrefix, numSampleIt, continueLearning = True,
+            numLearnIt = 1, startEpsilon = 0.0, epsilonFactor = 1.0):
 
         """ sampling """
         self.objectShape = 'quad'
@@ -276,10 +278,20 @@ class MazeLearner:
         self.bwFactorKbGP = factorKb
         self.weightNonKbGP = weightNonKb
 
-
         self.sDim = self.NUM_NON_KB_DIM + 2 * self.numKilobots
-        self.S, self.A, self.R, self.S_ = empty((0, self.sDim)), empty((0, 2)),\
-                empty((0, 1)), empty((0, self.sDim))
+
+        if continueLearning:
+            # dont reset sample or policy
+            if self.S is None:
+                self.S, self.A, self.R, self.S_ = empty((0, self.sDim)),\
+                        empty((0, 2)), empty((0, 1)), empty((0, self.sDim))
+        else:
+            # reset samples, policy and number of iterations
+            self.S, self.A, self.R, self.S_ = empty((0, self.sDim)),\
+                    empty((0, 2)), empty((0, 1)), empty((0, self.sDim))
+            self.policy = SparseGPPolicy(KilobotKernel(self.NUM_NON_KB_DIM),
+                    self.aRange)
+            self.it = 0
 
         self.numLearnIt = numLearnIt
 

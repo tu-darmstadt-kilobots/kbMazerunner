@@ -6,6 +6,7 @@
 \usepackage{subfig}
 \usepackage{hyperref}
 \usepackage{natbib}
+\usepackage{amsmath}
 
 \bibpunct{[}{]}{;}{n}{,}{,}
 
@@ -110,9 +111,9 @@ following three steps:
 During the simulation we generate sample in the form $(s_i, a_i, r_i, s'_i)$,
 where we start in state $s_i$, take action $a_i$ to get to state $s'_i$ and
 get reward $r_i$. We also define a feature-based Q-function as $Q(s, a) =
-\phi(s,a)^T \theta$ with parameter vector $\theta$. Details of our state and
-action representations and rewards and features we used are discussed in section
-TODO.
+\phi(s,a)^T \theta$ with feature function $\phi(s,a)$ and parameter vector
+$\theta$. Details of our state and action representations and rewards and
+features we used are discussed in section TODO.
 
 To estimate $\theta$ we use \emph{Least-squares temporal difference
 learning} (LSTD) with $L_{22}-Regularization$\cite{lstdRegularization} as
@@ -120,26 +121,88 @@ follows:
 
 With $n$ being the number of sample and $k$ being the number of features
 we define the two feature matrices $\Phi$ and $\Phi'$ (size $n\times k$)
-$$\Phi = \left(
-\begin{array}{c} \phi(s_1,a_1)^T \\ \phi(s_2,a_2)^T \\ \dots \\ \phi(s_n, a_n^T)
-\end{array} \right), \quad
-\Phi' = \left( \begin{array}{c} \phi(s_1',a_1)^T \\
-
-\phi(s_2',a_2)^T \\ \dots \\ \phi(s_n', a_n^T) \end{array} \right)$$ and the
-reward vector
-$$R = \left( \begin{array}{c} r(s_1) \\ r(s_2) \\ \dots \\ r(s_n) \end{array} \right).$$
+$$
+\Phi = \left(
+\begin{array}{c}
+    \phi(s_1,a_1)^T \\
+    \phi(s_2,a_2)^T \\
+    \dots \\
+    \phi(s_n,a_n^T)
+\end{array} \right), \;
+\Phi' = \left(
+\begin{array}{c}
+    \mathbf{E}_{\pi(a_1'|s_1')} [\phi(s_1', a_1') | s_1']^T \\
+    \mathbf{E}_{\pi(a_2'|s_2')} [\phi(s_2', a_2') | s_2']^T \\
+    \dots \\
+    \mathbf{E}_{\pi(a_n'|s_n')} [\phi(s_n', a_n') | s_n']^T \\
+\end{array} \right)
+$$
+and the reward vector
+$$
+R = \left(
+\begin{array}{c}
+    r(s_1) \\
+    r(s_2) \\
+    \dots \\
+    r(s_n)
+\end{array} \right).
+$$
+For $\Phi'$ we estimate the expected value
+$$
+\mathbf{E}_{\pi(a_i'|s_i')} [\phi(s_i', a_i') | s_i']
+$$
+by taking the average over $p$ samples $a_i' \sim \pi(a_i'|s_i')$, where $\pi$
+is our current policy.
 
 Using the derivations of \cite{lspi} and \cite{lstdRegularization} we can easily
 compute $\theta$ as
-$$\theta = (X^TX+\beta'I)^{-1}X^Ty$$ with
-$$X = C(A+\beta I) \qquad y=Cb$$ $$C = \Phi(\Phi^T\Phi+\beta I)^{-1},$$
+$$
+\theta = (X^TX+\beta'I)^{-1}X^Ty
+$$
+with
+$$X = C(A+\beta I) \qquad y=Cb$$
+$$A = \Phi^T(\phi-\gamma \Phi') \qquad b=\Phi^T R$$
+$$C = \Phi(\Phi^T\Phi+\beta I)^{-1},$$
 where $\beta$ and $\beta'$ are regularization parameters for the projection and
 fixed-point step, which make the estimation numerically more stable and improve
 noise tolerance.
 
 \subsubsection{Actor Critic REPS}
+In this step we find a new policy $\pi'$ which optimizes the expected Q-value
+as given by our estimated Q-function, but has a limited Kullback-Leibner (KL)
+distance to the old policy $\pi$.
+
+To achieve this we optimize over the joint state action distribution
+$p(s,a) = p(s) \pi'(s, a)$ and require that the estimated state distribution
+$p(s)$ is the same as in the given state sample distribution $\mu(s)$.
+This is implemented by matching feature averages of $p(s)$ and $\mu(s)$ and
+leads to the following optimization problem:
+\begin{align}
+    & \max_p \int p(s, a)Q(s, a)\:ds\:da\:, \\
+    & \text{s.t. } \text{KL}(p(s, a) || \mu(s)\pi(a|s)) \leq \epsilon,\\
+    & \int p(s)\phi(s)\:ds = \hat{\phi}, \int p(s, a)\:ds\:da = 1,
+\end{align}
+where $\hat{\phi} = \int p(s) \phi(s)\:ds$ is the average feature vector of all
+state samples and $\phi(s)$ is another feature function.
+
+This problem can be solved using Lagrangian multipliers and has the solution
+$$
+p(s)\pi'(a|s) \propto \mu(s) \pi(a|s) \exp\left(\frac{Q(s,a) - V(s)}{\eta}\right),
+$$
+where $V(s) = v^T \phi(s)$ and $\eta$ and $v$ are Lagrangian multipliers which
+can be obtained by minimizing the dual function using standard gradient methods.
 
 \subsubsection{Obtaining a new Policy}
+Lastly we need to fit a new policy to our desired probabilities
+$p(s_i, a_i) = p(s_i) \pi'(a_i|s_i)$. This is done by minimizing the KL
+divergence between $\pi'$ and our new policy $\bar{\pi}$ which is equivalent to
+computing a weighted maximum likelihood estimate with sample weights
+$$
+w_i = \exp\left(\frac{Q(s_i, a_i) - V(s_i)}{\eta}\right).
+$$
+
+In this paper we use a weighted Sparse Gaussian Process to obtain our new policy
+$\bar{\pi}$. TODO citation / explain Sparse GP?
 
 \section{LEARNING PROCESS}
 

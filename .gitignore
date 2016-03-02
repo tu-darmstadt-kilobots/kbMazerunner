@@ -13,4 +13,5 @@ figures/generated
 *.fls
 *.log
 *.out
+*.dvi
 *.pdf

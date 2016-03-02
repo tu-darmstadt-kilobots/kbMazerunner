@@ -10,14 +10,11 @@
 
 \bibpunct{[}{]}{;}{n}{,}{,}
 
-\usetikzlibrary{external} \tikzexternalize[prefix=figures/precompiled/]
-
-    \newlength\figureheight \newlength\figurewidth
+\newlength\figureheight \newlength\figurewidth % ?
 
 \begin{document}
 
 \twocolumn[
-
 \aistatstitle{Learning to Control Kilobots with a Flashlight}
 \aistatsauthor{Alexander Hendrich \And Daniel Kauth \And Gregor Gebhardt}
 \aistatsaddress{TU Darmstadt \And TU Darmstadt \And TU Darmstadt}]
@@ -40,36 +37,38 @@ by moving a single light source. Because this task is quite complex and
 difficult to learn, we split it up into two separate problems with two separate
 policies.
 
-The first problem is to find an optimal path through the labyrinth.
-The policy should return a movement direction for each possible object position.
-By constantly following these movements, the object should reach the goal
-position independent of its starting position.
+The first problem is to find an optimal path through the labyrinth. The policy
+should return a movement direction for each possible object position. By
+constantly following these movements, the object should reach the goal position
+independent of its starting position.
 
-Because we cannot directly
-control the object's movement we need a method to interact with the light
-source, so that the kilobots push the object in the desired direction. This will
-be the focus of the second problem. The policy should return a new light
-position depending on the output of the first policy (the desired movement
-direction of the object) and the relative position of the kilobots towards the
-object.
+Because we cannot directly control the object's movement we need a method to
+interact with the light source, so that the kilobots push the object in the
+desired direction. This will be the focus of the second problem. The policy
+should return a new light position depending on the output of the first policy
+(the desired movement direction of the object) and the relative position of the
+kilobots towards the object.
 
-\begin{figure}[!htb] \centering
-\includegraphics[width=0.8\linewidth]{figures/inspiration.png} \caption{Kilobots
-pushing a small object through a maze by human controlled light sources}
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[width=0.8\linewidth]{figures/inspiration.png}
+    \caption{Kilobots pushing a small object through a maze by human controlled
+        light sources}
 \end{figure}
 
-\section{PRELIMINARIES} In the following sections we introduce our used
-materials (kilobots\cite{kilobot}) and methods (Actor Critic Relative Entropy
-Policy Search)\cite{acreps}.
+\section{PRELIMINARIES}
+In the following sections we introduce our used materials
+(kilobots\cite{kilobot}) and methods (Actor Critic Relative Entropy Policy
+Search)\cite{acreps}.
 
-\subsection{Kilobots} Kilobots\cite{kilobot} are open-source, low cost robots
-specially designed to explore collective algorithms and decentralized
-cooperation. With previous robots these methods could only be tested in a
-simulator or in small quantities of robots because acquiring and controlling
-hundreds or even thousands of them is very cost-intensive, time consuming and
-complex. To eliminate this issue Harvard University developed Kilobots. Each
-robot is made with only 14\$ worth of parts and large collectives can easily be
-controlled by a single user.
+\subsection{Kilobots}
+Kilobots\cite{kilobot} are open-source, low cost robots specially designed to
+explore collective algorithms and decentralized cooperation. With previous
+robots these methods could only be tested in a simulator or in small quantities
+of robots because acquiring and controlling hundreds or even thousands of them
+is very cost-intensive, time consuming and complex. To eliminate this issue
+Harvard University developed Kilobots. Each robot is made with only 14\$ worth
+of parts and large collectives can easily be controlled by a single user.
 
 The low cost however results in limited capabilities of each individual robot.
 For example, the kilobot doesn't use complex steering or wheels for locomotion.
@@ -92,13 +91,15 @@ used to control a whole swarm of robots at once. While performing left or right
 turns the robot only activates one of its two motors and the robot doesn't move
 in a straight line, which further reduces its movement speed.
 
-\begin{figure}[!htb] \centering
+\begin{figure}[!htb]
+    \centering
     \includegraphics[width=0.9\linewidth]{figures/kilobot.png}
     \caption{Isometric (left) and bottom (right) views of a Kilobot. Some key
-    features are: (A) vibration motors, (B) lithium-ion battery, (C) rigid
-supporting legs, (D) infrared transmitter/receiver, (E) three-color (RGB) LED,
-(F) charging tab, and (G) ambient light sensor. Note the 1 cm line for
-scale.\cite{kilobot}} \end{figure}
+        features are: (A) vibration motors, (B) lithium-ion battery, (C) rigid
+        supporting legs, (D) infrared transmitter/receiver, (E) three-color
+        (RGB) LED, (F) charging tab, and (G) ambient light sensor. Note the 1 cm
+        line for scale.\cite{kilobot}}
+\end{figure}
 
 \subsection{Actor Critic Relative Entropy Policy Search}
 \emph{Actor critic relative entropy policy search} (AC-REPS) as introduced by
@@ -151,7 +152,7 @@ For $\Phi'$ we estimate the expected value
 $$
 \mathbf{E}_{\pi(a_i'|s_i')} [\phi(s_i', a_i') | s_i']
 $$
-by taking the average over $p$ samples $a_i' \sim \pi(a_i'|s_i')$, where $\pi$
+by taking the average over $m$ samples $a_i' \sim \pi(a_i'|s_i')$, where $\pi$
 is our current policy.
 
 Using the derivations of \cite{lspi} and \cite{lstdRegularization} we can easily
@@ -164,7 +165,7 @@ $$X = C(A+\beta I) \qquad y=Cb$$
 $$A = \Phi^T(\phi-\gamma \Phi') \qquad b=\Phi^T R$$
 $$C = \Phi(\Phi^T\Phi+\beta I)^{-1},$$
 where $\beta$ and $\beta'$ are regularization parameters for the projection and
-fixed-point step, which make the estimation numerically more stable and improve
+fixed-point step which make the estimation numerically more stable and improve
 noise tolerance.
 
 \subsubsection{Actor Critic REPS}
@@ -177,75 +178,138 @@ $p(s,a) = p(s) \pi'(s, a)$ and require that the estimated state distribution
 $p(s)$ is the same as in the given state sample distribution $\mu(s)$.
 This is implemented by matching feature averages of $p(s)$ and $\mu(s)$ and
 leads to the following optimization problem:
-\begin{align}
+\begin{align*}
     & \max_p \int p(s, a)Q(s, a)\:ds\:da\:, \\
     & \text{s.t. } \text{KL}(p(s, a) || \mu(s)\pi(a|s)) \leq \epsilon,\\
     & \int p(s)\phi(s)\:ds = \hat{\phi}, \int p(s, a)\:ds\:da = 1,
-\end{align}
+\end{align*}
 where $\hat{\phi} = \int p(s) \phi(s)\:ds$ is the average feature vector of all
-state samples and $\phi(s)$ is another feature function.
+state samples, $\phi(s)$ is another feature function and $\epsilon$ is the
+maximum allowed distance between the old and new policies.
 
 This problem can be solved using Lagrangian multipliers and has the solution
 $$
 p(s)\pi'(a|s) \propto \mu(s) \pi(a|s) \exp\left(\frac{Q(s,a) - V(s)}{\eta}\right),
 $$
 where $V(s) = v^T \phi(s)$ and $\eta$ and $v$ are Lagrangian multipliers which
-can be obtained by minimizing the dual function using standard gradient methods.
+can be obtained by minimizing the dual function on the samples using standard
+gradient methods.
 
 \subsubsection{Obtaining a new Policy}
-Lastly we need to fit a new policy to our desired probabilities
-$p(s_i, a_i) = p(s_i) \pi'(a_i|s_i)$. This is done by minimizing the KL
-divergence between $\pi'$ and our new policy $\bar{\pi}$ which is equivalent to
-computing a weighted maximum likelihood estimate with sample weights
-$$
-w_i = \exp\left(\frac{Q(s_i, a_i) - V(s_i)}{\eta}\right).
-$$
+The previous step only gives us desired probabilities
+$p(s_i, a_i) = p(s_i) \pi'(a_i|s_i)$ for our samples so in this step we need
+to generalize these by fitting a new policy $\bar{\pi}$.
 
-In this paper we use a weighted Sparse Gaussian Process to obtain our new policy
-$\bar{\pi}$. TODO citation / explain Sparse GP?
+This is done by minimizing the KL divergence between $\pi'$ and our new policy
+$\bar{\pi}$ which is equivalent to computing a weighted maximum likelihood
+estimate with sample weights
+$$ w_i = \exp\left(\frac{Q(s_i, a_i) - V(s_i)}{\eta}\right). $$
+
+In this paper we use a weighted Gaussian Process (GP) to obtain our new policy
+$\bar{\pi}$ by estimating action $a_i$ for state $s_i$ with weight $w_i$. We
+also use the sparse version of the GP to reduce computation time.
+
+This choice of weights will reproduce actions wich lead to a higher reward with
+higher probability but will also choose suboptimal actions with some
+probability, because our new policy can not be too far away in terms of KL
+divergence from the old policy and we start with a random policy. This achieves
+a tradeoff between exploration and exploitation.
+
+TODO citation / explain Sparse GP?
 
 \section{LEARNING PROCESS}
 
-\subsection{Object Pushing Policy}
+Our learning process is implemented in Python and uses a simple kilobot
+simulator (see \autoref{sec:simulator}) written by us to generate samples.
 
-\subsection{Maze solving Policy}
+\subsection{Maze Solving Policy}
+This policy tells us where the object should move given the current object
+position and solves the maze (\autoref{fig:simulator}) in this way.
 
+Because this policy is relatively easy to learn and there are specialized maze
+solvers which can easily compute an optimal path through any maze we did not
+learn this policy and instead focused on the second one, which is much more
+interesting. Therefore we manually specified this policy by providing a number
+of waypoints the object should pass and giving the next waypoint as the target
+position. Once we reach a waypoint we move one to next one.
+
+In our experiments this simple policy is sufficient to move different objects
+through a simple maze using our object movement policy. For this reason we will
+only discuss the object moving policy in the following sections.
+
+TODO dont learn first part because already done in first paper?
 TODO use maze solver or just points list?
 
-\section{FUTURE WORK \& CONCLUSION} Our goal for the second part of this project
-is to learn how to control the kilobots, so that they can push a given object
-(e.g. flat cylinder) towards the desired direction given by our first policy. To
-achieve this goal, the policy first has to move the kilobots behind the object.
-Depending on the shape of the object (flat cylinder compared to an ``L''-shaped
-object), the optimal positions for the kilobots to push can be different if the
-object is rotated.
+\subsection{Simulator}
+\label{sec:simulator}
 
-Our initial approach was to solve the two problems at once, so we already went
-through some attempts to model the pushing behavior. Although we could not
-achieve satisfactorily results with this approach, we feel confident that our
-modeling will return good results once we split up the problem into two distinct
-problems. To model the pushing behavior we need to find a good position behind
-the object and then push the object with the kilobots. Therefore we placed two
-rings of RBFs around the object's position. Because we split up the two policies
-we can also increase the number of RBFs we used for the pushing behavior or even
-spread them on a grid around the object.
+\newcommand\nkb{\#\mathit{kb}}
+\newcommand\nep{\#\mathit{ep}}
+\newcommand\nst{\#\mathit{st}}
 
-Because we want to apply our learned policies to larger quantities of kilobots,
-we will probably have to simulate a large quantity of kilobots during sample
-generation. Because the number of simulated kilobots is very crucial to the
-performance and time complexity we will have to keep this number quite small.
-Maybe we can only simulate a few kilobots or even a single one and let them
-represent the center of mass of a whole swarm of kilobots. Otherwise we would
-probably have to further improve the simulation performance and extend the
-parallel computing capabilities to a larger cluster.
+To simulate the kilobots and collect samples for the object movement policy we
+wrote our own simple kilobot simulator (\autoref{fig:simulator}) in Python based
+on the 2D physics engine pybox2d\cite{pybox2d}. This allows us to simulate
+collisions between kilobots and other kilobots, the object and walls.
 
-Until now we have learned a policy for moving an object through a maze towards a
-goal position. Once the second problem has been solved, we should be able to
-easily combine both policies to solve the initial problem of pushing an object
-through a maze by controling a swarm of kilobots with a light source. Finally we
-want to transfer the resulting policies onto a real world scenario with a self
-built maze and real kilobots.
+When requesting new samples from the simulator we specify the current policy
+$\pi$ which will be used to generate these sampels as well as the sampling
+parameters such as the shape of the object, the number of kilobots $\nkb$, the
+number of episodes $\nep$ and the number of steps per episode $\nst$.
 
-\bibliographystyle{plainnat} \bibliography{bibliography}
+Given these parameters the simulator first generates $\nep$ kilobot start
+positions $\mathit{start}_i$ equally spaced in a circle of radius $1.5 \cdot r$
+around the object which starts in the middle of the screen where $r$ is the
+radius or half width of the object depending on the its shape. Then for
+$i \in \{1, \dots, \nep\}$ it does the following:
+
+The object's position is reset to the middle of the screen and its angle is set
+to 0. After that the light position is set to $\mathit{start}_i$ and the
+position of the $\nkb $kilobots is set to $\mathit{start}_i + \mathit{off}_j$,
+where $\mathit{off}_j$ is a small individual offset for kilobot number $j$.
+Then $\nst$ time steps are simulated where in each one an action $a_k$ is chosen
+for the current state $s_k$ according to $\pi$ and applied by adding $a_k$ to
+the current light posiiton. Next the kilobots move directly toward the light and
+lastly we record the current state as $s_k'$, compute the reward $r_k$ and
+save the tuple $(s_k, a_k, r_k, s_k')$ as a sample. We also restrict the
+magnitude of the light and kilobot movements to get a more realistic simulation.
+
+The simulator can also be used to simulate the kilobots pushing an object
+through a maze. In this mode we do not record any samples. Instead we move the
+light according to our object movement policy which gets a target position from
+our maze solving policy. The policies are combined in the following way:
+
+As we will discuss in \autoref{sec:objpolicy} our object movement policy learns
+how to move the light to push the object to the right given the current light
+and kilobot positions relative to the object's position. The maze solving policy
+now gives us a target position $t$ from which we compute the target direction as
+$d = t - o$ where $o$ is the current object position. We mow compute the angle
+$\alpha$ between $d$ and $(1, 0)$ (the vector pointing to the right) and rotate
+the state around $\alpha$. Then we use the object movement policy to get an
+action for our rotated state which we rotate by $-\alpha$ to get the final
+action which we apply just as in the sample generation case.
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/simulator_maze.png}
+    \caption{Simulator showing 4 kilobots pushing an object through a maze}
+    \label{fig:simulator}
+\end{figure}
+
+\subsection{Object Movement Policy}
+\label{sec:objpolicy}
+
+
+% sample generation iteration
+% states
+% features
+
+\section{RESULTS}
+
+\section{FUTURE WORK \& CONCLUSION}
+
+
+\bibliographystyle{plainnat}
+\bibliography{bibliography}
 
 \end{document}

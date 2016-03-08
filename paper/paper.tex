@@ -7,6 +7,7 @@
 \usepackage{hyperref}
 \usepackage{natbib}
 \usepackage{amsmath}
+\usepackage{amssymb}
 
 \bibpunct{[}{]}{;}{n}{,}{,}
 
@@ -109,6 +110,8 @@ non-parametric continous policies and random exploration. It consists of the
 following three steps:
 
 \subsubsection{Estimating the Q-Function}
+\label{sec:estimateq}
+
 During the simulation we generate sample in the form $(s_i, a_i, r_i, s'_i)$,
 where we start in state $s_i$, take action $a_i$ to get to state $s'_i$ and
 get reward $r_i$. We also define a feature-based Q-function as $Q(s, a) =
@@ -169,6 +172,8 @@ fixed-point step which make the estimation numerically more stable and improve
 noise tolerance.
 
 \subsubsection{Actor Critic REPS}
+\label{sec:reps}
+
 In this step we find a new policy $\pi'$ which optimizes the expected Q-value
 as given by our estimated Q-function, but has a limited Kullback-Leibner (KL)
 distance to the old policy $\pi$.
@@ -196,6 +201,8 @@ can be obtained by minimizing the dual function on the samples using standard
 gradient methods.
 
 \subsubsection{Obtaining a new Policy}
+\label{sec:gp}
+
 The previous step only gives us desired probabilities
 $p(s_i, a_i) = p(s_i) \pi'(a_i|s_i)$ for our samples so in this step we need
 to generalize these by fitting a new policy $\bar{\pi}$.
@@ -207,7 +214,8 @@ $$ w_i = \exp\left(\frac{Q(s_i, a_i) - V(s_i)}{\eta}\right). $$
 
 In this paper we use a weighted Gaussian Process (GP) to obtain our new policy
 $\bar{\pi}$ by estimating action $a_i$ for state $s_i$ with weight $w_i$. We
-also use the sparse version of the GP to reduce computation time.
+also use the sparse version of the GP as introduced in \cite{sparsegp} to reduce
+computation time.
 
 This choice of weights will reproduce actions wich lead to a higher reward with
 higher probability but will also choose suboptimal actions with some
@@ -215,30 +223,26 @@ probability, because our new policy can not be too far away in terms of KL
 divergence from the old policy and we start with a random policy. This achieves
 a tradeoff between exploration and exploitation.
 
-TODO citation / explain Sparse GP?
-
 \section{LEARNING PROCESS}
 
 Our learning process is implemented in Python and uses a simple kilobot
-simulator (see \autoref{sec:simulator}) written by us to generate samples.
+simulator (see \ref{sec:simulator}) written by us to generate samples.
 
 \subsection{Maze Solving Policy}
 This policy tells us where the object should move given the current object
-position and solves the maze (\autoref{fig:simulator}) in this way.
+position and solves a maze (\autoref{fig:simulator}) in this way.
 
-Because this policy is relatively easy to learn and there are specialized maze
-solvers which can easily compute an optimal path through any maze we did not
-learn this policy and instead focused on the second one, which is much more
-interesting. Therefore we manually specified this policy by providing a number
-of waypoints the object should pass and giving the next waypoint as the target
-position. Once we reach a waypoint we move one to next one.
+Because this policy is relatively easy to learn and there are specialized path
+planning algorithms like $A^*$ which can easily compute an optimal path through
+any maze we did not learn this policy and instead focused on the second one,
+which is much more interesting. Therefore we manually specified this policy by
+providing a number of waypoints the object should pass and giving the next
+waypoint as the target position. Once we reach a waypoint we move one to next
+one.
 
 In our experiments this simple policy is sufficient to move different objects
 through a simple maze using our object movement policy. For this reason we will
-only discuss the object moving policy in the following sections.
-
-TODO dont learn first part because already done in first paper?
-TODO use maze solver or just points list?
+only discuss the object movement policy in the following sections.
 
 \subsection{Simulator}
 \label{sec:simulator}
@@ -261,29 +265,30 @@ Given these parameters the simulator first generates $\nep$ kilobot start
 positions $\mathit{start}_i$ equally spaced in a circle of radius $1.5 \cdot r$
 around the object which starts in the middle of the screen where $r$ is the
 radius or half width of the object depending on the its shape. Then for
-$i \in \{1, \dots, \nep\}$ it does the following:
+$i \in \{1, \dots, \nep\}$ we do the following:
 
 The object's position is reset to the middle of the screen and its angle is set
 to 0. After that the light position is set to $\mathit{start}_i$ and the
-position of the $\nkb $kilobots is set to $\mathit{start}_i + \mathit{off}_j$,
+position of the $\nkb$ kilobots is set to $\mathit{start}_i + \mathit{off}_j$,
 where $\mathit{off}_j$ is a small individual offset for kilobot number $j$.
 Then $\nst$ time steps are simulated where in each one an action $a_k$ is chosen
 for the current state $s_k$ according to $\pi$ and applied by adding $a_k$ to
-the current light posiiton. Next the kilobots move directly toward the light and
-lastly we record the current state as $s_k'$, compute the reward $r_k$ and
-save the tuple $(s_k, a_k, r_k, s_k')$ as a sample. We also restrict the
-magnitude of the light and kilobot movements to get a more realistic simulation.
+the current light positon. Next the kilobots move directly toward the light for
+a short amount time (1 second for all of our simulations) and lastly we record
+the current state as $s_k'$, compute the reward $r_k$ and save the tuple $(s_k,
+a_k, r_k, s_k')$ as a sample. We also restrict the magnitude of the light and
+kilobot movements to get a more realistic simulation.
 
 The simulator can also be used to simulate the kilobots pushing an object
 through a maze. In this mode we do not record any samples. Instead we move the
 light according to our object movement policy which gets a target position from
 our maze solving policy. The policies are combined in the following way:
 
-As we will discuss in \autoref{sec:objpolicy} our object movement policy learns
+As we will discuss in \ref{sec:objpolicy} our object movement policy learns
 how to move the light to push the object to the right given the current light
 and kilobot positions relative to the object's position. The maze solving policy
 now gives us a target position $t$ from which we compute the target direction as
-$d = t - o$ where $o$ is the current object position. We mow compute the angle
+$d = t - o$ where $o$ is the current object position. We now compute the angle
 $\alpha$ between $d$ and $(1, 0)$ (the vector pointing to the right) and rotate
 the state around $\alpha$. Then we use the object movement policy to get an
 action for our rotated state which we rotate by $-\alpha$ to get the final
@@ -299,12 +304,136 @@ action which we apply just as in the sample generation case.
 \subsection{Object Movement Policy}
 \label{sec:objpolicy}
 
+For this policy we decided to only learn how to push the object to the right
+instead of an arbitrary direction. This simplifies and speeds up the learning
+process because we need to generate fewer samples and can represent our policy
+using a smaller state subset for the sparse GP and therefore can compute the
+policy update much faster. As discussed in the last paragraph of the previous
+section we can still use this policy to push the object in an arbitrary
+direction by rotation the state and action appropriately.
 
-% sample generation iteration
-% states
-% features
+\subsubsection{On-Policy Learning}
+
+To learn the object movement policy we use on-policy learning. During this
+process we have matrices $S_k, A_k, R_k, S'_k$ with $n$ rows holding the $n$
+current samples which are initially empty and a current policy $\pi_k$. Our
+first policy $\pi_0$ predicts random actions $(a_x, a_y)$, where both $a_x$ and
+$a_y$ are sampled uniformly from $[-0.015, 0.015]$ (1.5 cm).
+
+In each iteration we use the current policy $\pi_k$ to generate $m$ samples
+$(s_i, a_i, r_i, s'_i)$ and add them to the current samples giving matrices
+$S_{k+1}, A_{k+1}, R_{k+1}, S'_{k+1}$ holding $n + m$ samples. To keep the
+computation tractable we then randomly choose $10000$ of the $n + m$ samples
+and replace the current sample matrices by matrices filled with the chosen
+$10000$ samples (if $(n + m) < 10000$ nothing changes).
+
+Next we estimate the Q-function as described in \ref{sec:estimateq},
+compute a sample weighting as in \ref{sec:reps} and lastly fit a new sparse
+GP as discussed in \ref{sec:gp}, which then becomes our new policy $\pi_{k+1}$.
+
+We repeat these steps a fixed number of times and manually inspect the learned
+policy. If it is not satisfactory (it can not solve the maze) we continue the
+learing process.
+
+\subsubsection{States and Actions}
+
+With $n$ kilobots our state tupel is
+$$s = (l_x, l_y, k_{1x}, k_{1y}, \dots, k_{nx}, k_{ny}), $$
+where $(l_x, l_y)$ is the light position and $(k_{ix}, k_{iy})$ is the position
+of the $i-th$ kilobot. All positions are relative to the object's center
+position.
+
+Our actions tuple is
+$$a = (a_x, a_y),$$
+which is the direction the light should move in.
+
+\subsubsection{Rewards}
+
+Our reward is given by
+$$ r = (c_x - p_x) - 0.5 \cdot \mathrm{abs} (c_y - p_y), $$
+where $(c_x, c_y)$ is the object's current position and $(p_x, p_y)$ is the
+object's position from the last time step. Therefore we reward movement to the
+right and punish movement to the left and any movement in $y$ direction.
+
+\subsubsection{Features and Kernels}
+
+For our learing process we need a feature function $\phi(s, a)$ over
+state-action pairs to represent our Q-function, a feature function $\phi(s)$
+over states for REPS and a kernel function $K(s_1, s_2)$ between states for the
+GP.
+
+The feature functions are implemented in terms of kernel functions by
+choosing a random subset of $N$ samples $(s_i, a_i)$ in each iteration and
+computing the feature vectors for a given state $s$ and action $a$ as:
+$$
+\phi(s, a) = \left(
+\begin{array}{c}
+    K'((s_1, a_1), (s, a)) \\
+    K'((s_2, a_2), (s, a)) \\
+    \dots \\
+    K'((s_N, a_N), (s, a))
+\end{array} \right),
+$$
+$$
+\phi(s) = \left(
+\begin{array}{c}
+    K(s_1, s) \\
+    K(s_2, s) \\
+    \dots \\
+    K(s_N, s)
+\end{array} \right),
+$$
+where $K'$ is a kernel function similar to $K$ which compares state-action
+pairs. For our experiments we used $N = 200$.
+
+Let $s$ be a state with $n$ kilobots with positions $(k_{ix}, k_{iy})$
+and $s'$ be a state with $m$ kilobots with positions $(k'_{jx}, k'_{jy})$ and
+let $a$ and $a'$ be the corresponding actions.
+We define $K(s, s')$ and $K'((s, a), (s', a'))$ as follows:
+
+First we compute the distance between the two kilobot configurations as
+\begin{align*}
+d_{kb} =
+  \frac{1}{n^2} &\sum_{i,j \in \{1,\dots,n\}}
+    \bar{K}((k_{ix}, k_{iy}), (k_{jx}, k_{jy})) \\
+- \frac{2}{n \cdot m} &\sum_{\substack{i \in \{1,\dots,n\}\\j \in \{1,\dots,m\}}}
+    \bar{K}((k_{ix}, k_{iy}), (k'_{jx}, k'_{jy})) \\
++ \frac{1}{m^2} &\sum_{i,j \in \{1,\dots,m\}}
+    \bar{K}((k'_{ix}, k'_{iy}), (k'_{jx}, k'_{jy})),
+\end{align*}
+where $\bar{K}$ is a 2 dimensional squared exponential kernel with
+$$
+\bar{K}(k_1, k_2) =
+    \exp \left(-0.5 (k_1 - k_2)^T
+    \mathrm{diag}\left(\frac{1}{\sigma_{kb}^2}\right) (k_1 - k_2)\right)
+$$
+and $\sigma_{kb} \in \mathbb{R}^2$ is the bandwidth for the kilobot dimensions.
+This allows us to compare states with different numbers of kilobots and the
+computed distance is independent of the order of the kilobot positions in the
+state vectors.
+
+After that we compute the distance for the other dimensions (light positions for
+$K$ and light positions and actions for $K'$) as
+$$
+d_{other} = (x_1 - x_2)^T \mathrm{diag}\left(\frac{1}{\sigma_{x}^2}\right) (x_1 - x_2),
+$$
+where $x_1$ and $x_2$ are vectors holding the values for all non-kilobot
+dimensions and $\sigma_x$ is the non-kilobot bandwith.
+
+We combine these distances to get the kernel value
+$$
+\exp(-0.5 (w \cdot d_{other} + (1 - w) \cdot d_{kb})),
+$$
+where $w \in [0,1]$ weighs the importance of the non-kilobot dimensions.
+
+In our experiments we used $w = 0.5$ and recomputed $\sigma_{kb}$ and $\sigma_x$
+in each iteration as the square root of the median of the squared distance
+between all sample values for each dimension separately. We also scaled the
+bandwidths uniformly in each dimension by some manually specified factors.
 
 \section{RESULTS}
+
+
 
 \section{FUTURE WORK \& CONCLUSION}
 

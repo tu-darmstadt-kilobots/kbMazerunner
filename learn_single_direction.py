@@ -308,10 +308,15 @@ class MazeLearner:
 
             self.saveParams(os.path.join(savePath, 'params'))
 
+        rewards = []
+
         for i in range(numSampleIt):
+            t = time.time()
+
             # get new samples
             St, At, Rt, S_t = self._getSamples()
             print('sum reward for last samples: {}'.format(Rt.sum()))
+            rewards += [Rt.sum()]
 
             # add samples
             self.S = r_[self.S, St]
@@ -334,8 +339,6 @@ class MazeLearner:
             self.PHI_SA = self.kernelSA.getGramMatrix(SA, self.MuSA)
 
             for j in range(numLearnIt):
-                t = time.time()
-
                 # LSTD to estimate Q function / Q(s,a) = phi(s, a).T * theta
                 self.PHI_SA_ = self._getFeatureExpectation(self.S_, 5, self.MuSA)
                 self.theta = self.lstd.learnLSTD(self.PHI_SA, self.PHI_SA_, self.R)
@@ -351,7 +354,6 @@ class MazeLearner:
 
                 self.it += 1
                 print('finished learning iteration {}'.format(self.it))
-                print('took: {}s'.format(time.time() - t))
 
                 # save results
                 if savePath != '':
@@ -369,10 +371,16 @@ class MazeLearner:
 
             self.epsilon *= self.epsilonFactor
 
+            print('sampling iteration took: {}s'.format(time.time() - t))
+
             gc.collect()
 
+        with open(os.path.join(savePath, 'rewards'), 'w') as f:
+            for r in rewards:
+                f.write('{}\n'.format(r))
+
     def getValueFunctionFigure(self, stepsX = 50, stepsY = 25, N = 4):
-        [X, Y] = meshgrid(linspace(-0.5, 0.5, stepsX), linspace(-0.25, 0.25, stepsY))
+        [X, Y] = meshgrid(linspace(-0.25, 0.25, stepsX), linspace(-0.25, 0.25, stepsY))
         X = X.flatten()
         Y = -Y.flatten()
 
@@ -402,7 +410,7 @@ class MazeLearner:
         return fig
 
     def getPolicyFigure(self, stepsX = 50, stepsY = 25):
-        [X, Y] = meshgrid(linspace(-0.5, 0.5, stepsX), linspace(-0.25, 0.25, stepsY))
+        [X, Y] = meshgrid(linspace(-0.25, 0.25, stepsX), linspace(-0.25, 0.25, stepsY))
         X = X.flatten()
         Y = Y.flatten()
 

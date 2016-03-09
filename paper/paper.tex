@@ -433,10 +433,114 @@ bandwidths uniformly in each dimension by some manually specified factors.
 
 \section{RESULTS}
 
+For our final evaluation we made 20 runs of our learning process with 15
+iterations each generating $25 \cdot 100 = 2500$ samples per iteration. Using
+an Haswell Quad Core with 3.4GHz per core each iteration took about 3 minutes,
+so the total runtime for each policy was about 45 minutes.
 
+The policies start of only being able to push the object when the kilobots start
+to the left of the object. After about 5 iterations they can also handle kilobot
+starting positions above and below the object by first moving the kilobots to
+the left and down and then pushing the object from the left side. After further
+iterations the policies are able to push the object to the right even if the
+kilobots start above and to the right of the object (see
+\autoref{fig:policyEvolution}). With even more iterations the kilobot starting
+positions from which the object can be pushed tend to extend even further, but
+this improvement is inconsistent and the policies may even get worse again.
+Therefore we manually inspected the policies at each iteration and choose a good
+policy (which is typically found in the first about 15 iterations) for solving
+the maze.
 
-\section{FUTURE WORK \& CONCLUSION}
+\begin{figure*}[!htb]
+	\centering
+	\subfloat[1 iterations]{
+        \def\svgwidth{0.45\textwidth}
+        \input{figures/policy_1.pdf_tex}
+    }
+    \hfill
+	\subfloat[5 iterations]{
+        \def\svgwidth{0.45\textwidth}
+        \input{figures/policy_5.pdf_tex}
+    }
+    \hfill
+	\subfloat[10 iterations]{
+        \def\svgwidth{0.45\textwidth}
+        \input{figures/policy_10.pdf_tex}
+    }
+    \hfill
+	\subfloat[15 iterations]{
+        \def\svgwidth{0.45\textwidth}
+        \input{figures/policy_15.pdf_tex}
+    }
+    \hfill
+	\caption[foo]{Evolution of the learned policy.}
+	\label{fig:policyEvolution}
+\end{figure*}
 
+The value function also shows that kilobot positions left of the object are
+preferrable to positions to the right and you can also somewhat see the value
+function increasing when moving around the object from the right to the left
+(see \autoref{fig:value}).
+
+\begin{figure}[!htb]
+	\centering
+    \def\svgwidth{\columnwidth}
+    \input{figures/value.pdf_tex}
+    \caption{Learned value function after 8 iterations. The object (not shown
+             here) is at the middle of the image.}
+	\label{fig:value}
+\end{figure}
+
+With improving policies the object can be pushed to the right from a larger
+number of kilobot starting positions and therefore the reward tends to increase
+(see \autoref{fig:meanReward}).
+
+\begin{figure}[!htb]
+    \centering
+    \resizebox{\linewidth}{!}{\input{figures/reward.tex}}
+    \caption{Total reward for each iterations averaged over 8 runs.
+             TODO: 20 runs are not complete yet}
+    \label{fig:meanReward}
+\end{figure}
+
+We made the policy plots by getting the mean action for states distributed on a
+grid and plotting it as an arrow indicating the direction the light should move
+in. For this we set the relative light positions to evenly spaced values between
+$-0.25$ and $0.25$ for the $x-$ and $y-$dimension and set the position for all
+kilobots to coincide with the light position.
+
+To compute the Value-function we use the same states and uniformly sample a
+number of actions at random for each state. Then we compute the Q-values for all
+state-action pairs and average them for each state.
+
+To evaluate our policies we used our simulator to push the object through the
+maze as described in \ref{sec:simulator}. We found that our learned policies are
+sufficient to achieve this task and are even able to move the object when the
+kilobots are (almost) completely on the wrong side which requires moving them
+around the object. Moreover we can transfer our policy to more or less kilobots
+and are still able to push the object because of our choice of kernel. We
+learned the policy with 4 kilobots and testes it with 1,2,3,4,6,8 and 10
+kilobots and it was able to push the object through the maze in each case.
+Finally we were also able to push a circel through the maze even though the
+policy was learned on a square.
+
+\section{CONCLUSION \& FUTURE WORK}
+
+In our experiments we achieved our goal to learn a policy to push an object
+using multiple kilobots controlled by a single light and to combine this policy
+with a maze solving policy to push the object through a maze. Our policy is also
+transferable to a different number of kilobots and may be used to push objects of
+different simple symmetric shapes which we tested for a circle.
+
+Although this policy works well in the simulator it is not directly applicable
+to the real kilobots because our simulator is overly simplistic. It moves
+the kilobots directly toward the light instead of using phototaxis and also
+allows for arbitrary light movements where in reality the light would be moved
+by a robot arm which has some constraints on the forces used to move it.
+
+Therefore a future work could simulate the kilobots more realistically and try
+to transfer the learned policy to the real kilobots by building a maze and
+controlling a robot arm holding a flaslight usign the learned policy.
 
 \bibliographystyle{plainnat}
 \bibliography{bibliography}

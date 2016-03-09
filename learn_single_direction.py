@@ -248,6 +248,23 @@ class MazeLearner:
 
         self.stepsPerSec = 4096
 
+
+        self.sDim = self.NUM_NON_KB_DIM + 2 * self.numKilobots
+
+        if continueLearning:
+            # dont reset sample or policy
+            if self.S is None:
+                self.S, self.A, self.R, self.S_ = empty((0, self.sDim)),\
+                    empty((0, 2)), empty((0, 1)), empty((0, self.sDim))
+        else:
+            # reset samples, policy and number of iterations
+            self.S, self.A, self.R, self.S_ = empty((0, self.sDim)),\
+                    empty((0, 2)), empty((0, 1)), empty((0, self.sDim))
+            self.policy = SparseGPPolicy(KilobotKernel(self.NUM_NON_KB_DIM),
+                    self.aRange)
+            self.it = 0
+
+
         """ LSTD """
         self.lstd.discountFactor = 0.99
 
@@ -277,21 +294,6 @@ class MazeLearner:
         self.bwFactorNonKbGP = factor
         self.bwFactorKbGP = factorKb
         self.weightNonKbGP = weightNonKb
-
-        self.sDim = self.NUM_NON_KB_DIM + 2 * self.numKilobots
-
-        if continueLearning:
-            # dont reset sample or policy
-            if self.S is None:
-                self.S, self.A, self.R, self.S_ = empty((0, self.sDim)),\
-                        empty((0, 2)), empty((0, 1)), empty((0, self.sDim))
-        else:
-            # reset samples, policy and number of iterations
-            self.S, self.A, self.R, self.S_ = empty((0, self.sDim)),\
-                    empty((0, 2)), empty((0, 1)), empty((0, self.sDim))
-            self.policy = SparseGPPolicy(KilobotKernel(self.NUM_NON_KB_DIM),
-                    self.aRange)
-            self.it = 0
 
         self.numLearnIt = numLearnIt
 

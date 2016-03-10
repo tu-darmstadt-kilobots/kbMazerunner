@@ -106,7 +106,7 @@ in a straight line, which further reduces its movement speed.
 \emph{Actor critic relative entropy policy search} (AC-REPS) as introduced by
 \cite{acreps} is a method for policy improvement based on \emph{relative entropy
 policy search} (REPS) \cite{reps} which allows for model-free learning with
-non-parametric continous policies and random exploration. It consists of the
+non-parametric continuous policies and random exploration. It consists of the
 following three steps:
 
 \subsubsection{Estimating the Q-Function}
@@ -117,7 +117,7 @@ where we start in state $s_i$, take action $a_i$ to get to state $s'_i$ and
 get reward $r_i$. We also define a feature-based Q-function as $Q(s, a) =
 \phi(s,a)^T \theta$ with feature function $\phi(s,a)$ and parameter vector
 $\theta$. Details of our state and action representations and rewards and
-features we used are discussed in section TODO.
+features we used are discussed in section \ref{sec:objpolicy}.
 
 To estimate $\theta$ we use \emph{Least-squares temporal difference
 learning} (LSTD) with $L_{22}-Regularization$\cite{lstdRegularization} as
@@ -217,11 +217,11 @@ $\bar{\pi}$ by estimating action $a_i$ for state $s_i$ with weight $w_i$. We
 also use the sparse version of the GP as introduced in \cite{sparsegp} to reduce
 computation time.
 
-This choice of weights will reproduce actions wich lead to a higher reward with
+This choice of weights will reproduce actions which lead to a higher reward with
 higher probability but will also choose suboptimal actions with some
 probability, because our new policy can not be too far away in terms of KL
 divergence from the old policy and we start with a random policy. This achieves
-a tradeoff between exploration and exploitation.
+a trade-off between exploration and exploitation.
 
 \section{LEARNING PROCESS}
 
@@ -236,7 +236,7 @@ Because this policy is relatively easy to learn and there are specialized path
 planning algorithms like $A^*$ which can easily compute an optimal path through
 any maze we did not learn this policy and instead focused on the second one,
 which is much more interesting. Therefore we manually specified this policy by
-providing a number of waypoints the object should pass and giving the next
+providing a number of waypoints the object should pass and give the next
 waypoint as the target position. Once we reach a waypoint we move one to next
 one.
 
@@ -257,14 +257,14 @@ on the 2D physics engine pybox2d\cite{pybox2d}. This allows us to simulate
 collisions between kilobots and other kilobots, the object and walls.
 
 When requesting new samples from the simulator we specify the current policy
-$\pi$ which will be used to generate these sampels as well as the sampling
+$\pi$ which will be used to generate these samples as well as the sampling
 parameters such as the shape of the object, the number of kilobots $\nkb$, the
 number of episodes $\nep$ and the number of steps per episode $\nst$.
 
 Given these parameters the simulator first generates $\nep$ kilobot start
 positions $\mathit{start}_i$ equally spaced in a circle of radius $1.5 \cdot r$
-around the object which starts in the middle of the screen where $r$ is the
-radius or half width of the object depending on the its shape. Then for
+around the object which starts in the middle of the screen, where $r$ is the
+radius or half-width of the object depending on the its shape. Then for
 $i \in \{1, \dots, \nep\}$ we do the following:
 
 The object's position is reset to the middle of the screen and its angle is set
@@ -273,7 +273,7 @@ position of the $\nkb$ kilobots is set to $\mathit{start}_i + \mathit{off}_j$,
 where $\mathit{off}_j$ is a small individual offset for kilobot number $j$.
 Then $\nst$ time steps are simulated where in each one an action $a_k$ is chosen
 for the current state $s_k$ according to $\pi$ and applied by adding $a_k$ to
-the current light positon. Next the kilobots move directly toward the light for
+the current light position. Next the kilobots move directly toward the light for
 a short amount time (1 second for all of our simulations) and lastly we record
 the current state as $s_k'$, compute the reward $r_k$ and save the tuple $(s_k,
 a_k, r_k, s_k')$ as a sample. We also restrict the magnitude of the light and
@@ -297,7 +297,7 @@ action which we apply just as in the sample generation case.
 \begin{figure}[!htb]
     \centering
     \includegraphics[width=0.9\linewidth]{figures/simulator_maze.png}
-    \caption{Simulator showing 4 kilobots pushing an object through a maze}
+    \caption{4 kilobots pushing an object through a maze in the simulator.}
     \label{fig:simulator}
 \end{figure}
 
@@ -310,7 +310,7 @@ process because we need to generate fewer samples and can represent our policy
 using a smaller state subset for the sparse GP and therefore can compute the
 policy update much faster. As discussed in the last paragraph of the previous
 section we can still use this policy to push the object in an arbitrary
-direction by rotation the state and action appropriately.
+direction by rotating the state and action appropriately.
 
 \subsubsection{On-Policy Learning}
 
@@ -333,31 +333,31 @@ GP as discussed in \ref{sec:gp}, which then becomes our new policy $\pi_{k+1}$.
 
 We repeat these steps a fixed number of times and manually inspect the learned
 policy. If it is not satisfactory (it can not solve the maze) we continue the
-learing process.
+learning process.
 
 \subsubsection{States and Actions}
 
-With $n$ kilobots our state tupel is
+With $n$ kilobots our state tuple is
 $$s = (l_x, l_y, k_{1x}, k_{1y}, \dots, k_{nx}, k_{ny}), $$
 where $(l_x, l_y)$ is the light position and $(k_{ix}, k_{iy})$ is the position
 of the $i-th$ kilobot. All positions are relative to the object's center
 position.
 
-Our actions tuple is
+Our action tuple is
 $$a = (a_x, a_y),$$
 which is the direction the light should move in.
 
 \subsubsection{Rewards}
 
 Our reward is given by
-$$ r = (c_x - p_x) - 0.5 \cdot \mathrm{abs} (c_y - p_y), $$
+$$ r = (c_x - p_x) - 0.5 \cdot |c_y - p_y|, $$
 where $(c_x, c_y)$ is the object's current position and $(p_x, p_y)$ is the
 object's position from the last time step. Therefore we reward movement to the
 right and punish movement to the left and any movement in $y$ direction.
 
 \subsubsection{Features and Kernels}
 
-For our learing process we need a feature function $\phi(s, a)$ over
+For our learning process we need a feature function $\phi(s, a)$ over
 state-action pairs to represent our Q-function, a feature function $\phi(s)$
 over states for REPS and a kernel function $K(s_1, s_2)$ between states for the
 GP.
@@ -418,7 +418,7 @@ $$
 d_{other} = (x_1 - x_2)^T \mathrm{diag}\left(\frac{1}{\sigma_{x}^2}\right) (x_1 - x_2),
 $$
 where $x_1$ and $x_2$ are vectors holding the values for all non-kilobot
-dimensions and $\sigma_x$ is the non-kilobot bandwith.
+dimensions and $\sigma_x$ is the non-kilobot bandwidth.
 
 We combine these distances to get the kernel value
 $$
@@ -427,7 +427,7 @@ $$
 where $w \in [0,1]$ weighs the importance of the non-kilobot dimensions.
 
 In our experiments we used $w = 0.5$ and recomputed $\sigma_{kb}$ and $\sigma_x$
-in each iteration as the square root of the median of the squared distance
+in each iteration as the square root of the median of the squared distances
 between all sample values for each dimension separately. We also scaled the
 bandwidths uniformly in each dimension by some manually specified factors.
 
@@ -436,7 +436,7 @@ bandwidths uniformly in each dimension by some manually specified factors.
 For our final evaluation we made 20 runs of our learning process with 15
 iterations each generating $25 \cdot 100 = 2500$ samples per iteration. Using
 an Haswell Quad Core with 3.4GHz per core each iteration took about 3 minutes,
-so the total runtime for each policy was about 45 minutes.
+so the total run-time for each policy was about 45 minutes.
 
 The policies start of only being able to push the object when the kilobots start
 to the left of the object. After about 5 iterations they can also handle kilobot
@@ -447,40 +447,39 @@ kilobots start above and to the right of the object (see
 \autoref{fig:policyEvolution}). With even more iterations the kilobot starting
 positions from which the object can be pushed tend to extend even further, but
 this improvement is inconsistent and the policies may even get worse again.
-Therefore we manually inspected the policies at each iteration and choose a good
+Therefore we manually inspected the policies at each iteration and chose a good
 policy (which is typically found in the first about 15 iterations) for solving
 the maze.
 
 \begin{figure*}[!htb]
 	\centering
-	\subfloat[1 iterations]{
+	\subfloat[Policy after 1 iteration]{
         \def\svgwidth{0.45\textwidth}
         \input{figures/policy_1.pdf_tex}
     }
     \hfill
-	\subfloat[5 iterations]{
+	\subfloat[Policy after 5 iterations]{
         \def\svgwidth{0.45\textwidth}
         \input{figures/policy_5.pdf_tex}
     }
     \hfill
-	\subfloat[10 iterations]{
+	\subfloat[Policy after 10 iterations]{
         \def\svgwidth{0.45\textwidth}
         \input{figures/policy_10.pdf_tex}
     }
     \hfill
-	\subfloat[15 iterations]{
+	\subfloat[Policy after 15 iterations]{
         \def\svgwidth{0.45\textwidth}
         \input{figures/policy_15.pdf_tex}
     }
     \hfill
-	\caption[foo]{Evolution of the learned policy.}
+	\caption[foo]{Evolution of the learned policy}
 	\label{fig:policyEvolution}
 \end{figure*}
 
-The value function also shows that kilobot positions left of the object are
-preferrable to positions to the right and you can also somewhat see the value
-function increasing when moving around the object from the right to the left
-(see \autoref{fig:value}).
+The value function (after 8 iterations) also shows that kilobot positions left
+of the object are preferable to positions to the right. Further it increases
+when moving around the object from the right to the left (see \autoref{fig:value}).
 
 \begin{figure}[!htb]
 	\centering
@@ -498,7 +497,7 @@ number of kilobot starting positions and therefore the reward tends to increase
 \begin{figure}[!htb]
     \centering
     \resizebox{\linewidth}{!}{\input{figures/reward.tex}}
-    \caption{Total reward for each iterations averaged over 20 runs. The shaded
+    \caption{Total reward for each iteration averaged over 20 runs. The shaded
              area shows twice the standard deviation.}
     \label{fig:meanReward}
 \end{figure}
@@ -506,7 +505,7 @@ number of kilobot starting positions and therefore the reward tends to increase
 We made the policy plots by getting the mean action for states distributed on a
 grid and plotting it as an arrow indicating the direction the light should move
 in. For this we set the relative light positions to evenly spaced values between
-$-0.25$ and $0.25$ for the $x-$ and $y-$dimension and set the position for all
+$-0.25$ and $0.25$ for the $x-$ and $y-$dimensions and set the position for all
 kilobots to coincide with the light position.
 
 To compute the Value-function we use the same states and uniformly sample a
@@ -516,12 +515,12 @@ state-action pairs and average them for each state.
 To evaluate our policies we used our simulator to push the object through the
 maze as described in \ref{sec:simulator}. We found that our learned policies are
 sufficient to achieve this task and are even able to move the object when the
-kilobots are (almost) completely on the wrong side which requires moving them
-around the object. Moreover we can transfer our policy to more or less kilobots
-and are still able to push the object because of our choice of kernel. We
-learned the policy with 4 kilobots and testes it with 1,2,3,4,6,8 and 10
-kilobots and it was able to push the object through the maze in each case.
-Finally we were also able to push a circel through the maze even though the
+kilobots are (almost) completely on the wrong side of the object, which requires
+moving them around the object. Moreover we can transfer our policy to more or
+less kilobots and are still able to push the object because of our choice of
+kernel. We learned the policy with 4 kilobots and tested it with 1,2,3,4,6,8 and
+10 kilobots and it was able to push the object through the maze in each case.
+Finally we were also able to push a circle through the maze even though the
 policy was learned on a square.
 
 \section{CONCLUSION \& FUTURE WORK}
@@ -534,13 +533,13 @@ different simple symmetric shapes which we tested for a circle.
 
 Although this policy works well in the simulator it is not directly applicable
 to the real kilobots because our simulator is overly simplistic. It moves
-the kilobots directly toward the light instead of using phototaxis and also
-allows for arbitrary light movements where in reality the light would be moved
-by a robot arm which has some constraints on the forces used to move it.
+the kilobots directly toward the light instead of using Phototaxis and also
+allows for arbitrary light movements, where in reality the light would be moved
+by a robot arm which has some constraints on the forces it can apply.
 
 Therefore a future work could simulate the kilobots more realistically and try
 to transfer the learned policy to the real kilobots by building a maze and
-controlling a robot arm holding a flaslight usign the learned policy.
+controlling a robot arm holding a flashlight using the learned policy.
 
 \bibliographystyle{plainnat}
 \bibliography{bibliography}

@@ -9,7 +9,7 @@ from numpy import *
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, Polygon
 
 import os
 import gc
@@ -241,7 +241,7 @@ class MazeLearner:
             numLearnIt = 1, startEpsilon = 0.0, epsilonFactor = 1.0):
 
         """ sampling """
-        self.objectShape = 'quad'
+        self.objectShape = 't-form'
         self.numKilobots = 4
         self.numEpisodes = 25
         self.numStepsPerEpisode = 100
@@ -360,7 +360,7 @@ class MazeLearner:
                 # save results
                 if savePath != '':
                     figV = self.getValueFunctionFigure(50, 25, 4)
-                    figP = self.getPolicyFigure(50, 25)
+                    figP = self.getPolicyFigure(50, 25, self.objectShape)
 
                     figV.savefig(os.path.join(savePath, 'V_{}.svg'.format(self.it)))
                     figP.savefig(os.path.join(savePath, 'P_{}.svg'.format(self.it)))
@@ -411,11 +411,12 @@ class MazeLearner:
 
         return fig
 
-    def getPolicyFigure(self, stepsX = 50, stepsY = 25):
+    def getPolicyFigure(self, stepsX, stepsY, figureShape):
         [X, Y] = meshgrid(linspace(-0.25, 0.25, stepsX), linspace(-0.25, 0.25, stepsY))
         X = X.flatten()
         Y = Y.flatten()
 
+        print(figureShape)
         lightX = X
         lightY = Y
         alpha = zeros(size(lightX))
@@ -432,8 +433,21 @@ class MazeLearner:
         fig = plt.figure()
 
         # draw the object
-        ax = plt.gca()
-        ax.add_patch(Rectangle((-0.075, -0.075), 0.15, 0.15, facecolor='grey'))
+
+        if figureShape == "t-form":
+            ax = plt.gca()
+            ax.add_patch(Polygon([[0, 0], [0.075, 0], [0.075, 0.05], [-0.075, 0.05], [-0.075, 0]], facecolor='grey'))
+            ax.add_patch(Polygon([[0.025, 0], [0.025, -0.1], [-0.025, -0.1], [-0.025, 0]], facecolor='grey'))
+
+
+        elif figureShape == "l-form":
+            ax = plt.gca()
+            ax.add_patch(Polygon([[0, -0.1], [0.05, -0.1],  [0.05, 0.05], [0, 0.05]], facecolor='black'))
+            ax.add_patch(Polygon([[0.05, -0.1], [0.1, -0.1], [0.1, -0.05], [0.05, -0.05]], facecolor='black'))
+
+        else:
+            ax = plt.gca()
+            ax.add_patch(Rectangle((-0.075, -0.075), 0.15, 0.15, facecolor='grey'))
 
         plt.quiver(X, Y, U, V)
         plt.title('policy, iteration {}'.format(self.it))

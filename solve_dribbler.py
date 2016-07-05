@@ -27,7 +27,7 @@ class MazeTester:
                    ('Helper.py', open('Helper.py').read()),
                    ('Kernel.py', open('Kernel.py').read()),
                    ('SparseGPPolicy.py', open('SparseGPPolicy.py').read()),
-                   ('MazePolicy.py', open('MazePolicy.py').read())
+                   ('MazePolicy.py', open('DribblingPolicy.py').read())
                    ],
                'objPolicyModule': 'SparseGPPolicy',
                'mazePolicyModule': 'MazePolicy'}

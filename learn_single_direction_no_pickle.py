@@ -30,10 +30,6 @@ from kbSimulator.simulate_single_direction_no_pickle import KilobotsObjectMazeSi
 
 class MazeLearner:
     def __init__(self):
-        # self.context = Context()
-        # self.socket = self.context.socket(PAIR)
-        # self.port = port
-
         # s: light.x light.y kb.x1 kb.y1 ... kb.xn kb.yn
         # a: light movement (dx, dy)
         self.NUM_NON_KB_DIM = 2
@@ -54,51 +50,6 @@ class MazeLearner:
         self.S = None
 
         self.simulator = KilobotsObjectMazeSimulator()
-
-    # def _sendPolicyModules(self):
-    #     msg = {'message': 'sentPolicyModules',
-    #            'modules': [
-    #                ('Helper.py', open('Helper.py').read()),
-    #                ('Kernel.py', open('Kernel.py').read()),
-    #                ('SparseGPPolicy.py', open('SparseGPPolicy.py').read())
-    #                ],
-    #            'policyModule': 'SparseGPPolicy'}
-    #     self.socket.send(pickle.dumps(msg, protocol=2))
-
-    # def _getSamples(self):
-    #     msg = {'message': 'getSamples',
-    #            'policyDict': self.policy.getSerializableDict(),
-    #            'objectShape': self.objectShape,
-    #            'numKilobots': self.numKilobots,
-    #            'numEpisodes': self.numEpisodes,
-    #            'numStepsPerEpisode': self.numStepsPerEpisode,
-    #            'stepsPerSec': self.stepsPerSec,
-    #            'epsilon': self.epsilon,
-    #            'useMean': False}
-    #     self.socket.send(pickle.dumps(msg, protocol=2))
-    #
-    #     msg = pickle.loads(self.socket.recv(), encoding='latin1')
-    #     if not msg['message'] == 'sentSamples':
-    #         print('received unexpected message')
-    #     else:
-    #         return msg['samples']
-
-    # def testPolicy(self, objectShape = 'quad', numKilobots = 4,
-    #         numEpisodes = 100, numStepsPerEpisode = 50, stepsPerSec = 8):
-    #     msg = {'message': 'getSamples',
-    #            'policyDict': self.policy.getSerializableDict(),
-    #            'objectShape': objectShape,
-    #            'numKilobots': numKilobots,
-    #            'numEpisodes': numEpisodes,
-    #            'numStepsPerEpisode': numStepsPerEpisode,
-    #            'stepsPerSec': stepsPerSec,
-    #            'epsilon': 0.0,
-    #            'useMean': True}
-    #     self.socket.send(pickle.dumps(msg, protocol=2))
-    #
-    #     msg = pickle.loads(self.socket.recv(), encoding='latin1')
-    #     _, _, R, _ = msg['samples']
-    #     return R.sum()
 
     def _getStateActionMatrix(self, S, A):
         # states without kilobot positions + actions + kilobot positions
@@ -176,11 +127,6 @@ class MazeLearner:
             PHI += self.kernelSA.getGramMatrix(SA, MuSA)
 
         return PHI / N
-
-    # def connect(self):
-    #     self.socket.bind('tcp://*:{}s'.format(self.port))
-    #
-    #     self._sendPolicyModules()
 
     def savePolicyAndSamples(self, fileName):
         d = self.policy.getSerializableDict()
@@ -321,16 +267,6 @@ class MazeLearner:
             # get new samples
             St, At, Rt, S_t = self.simulator.getSamples(self.policy, self.objectShape, self.numKilobots, self.numEpisodes, self.numStepsPerEpisode, self.stepsPerSec, self.epsilon, False)
 
-            msg = {'message': 'getSamples',
-                   'policyDict': self.policy.getSerializableDict(),
-                   'objectShape': self.objectShape,
-                   'numKilobots': self.numKilobots,
-                   'numEpisodes': self.numEpisodes,
-                   'numStepsPerEpisode': self.numStepsPerEpisode,
-                   'stepsPerSec': self.stepsPerSec,
-                   'epsilon': self.epsilon,
-                   'useMean': False}
-
             print('sum reward for last samples: {}'.format(Rt.sum()))
             rewards += [Rt.sum()]
 
@@ -470,5 +406,4 @@ class MazeLearner:
 
 if __name__ == '__main__':
     learner = MazeLearner()
-    # learner.connect()
-    learner.learn('lform', 100, False)
+    learner.learn('quad', 100, False)

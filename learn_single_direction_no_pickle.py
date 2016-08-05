@@ -6,6 +6,10 @@
 
 from numpy import *
 
+
+import matplotlib
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 from mpl_toolkits.mplot3d import Axes3D
@@ -29,7 +33,7 @@ from kbSimulator.simulate_single_direction_no_pickle import KilobotsObjectMazeSi
 
 
 class MazeLearner:
-    def __init__(self):
+    def __init__(self, use_gui):
         # s: light.x light.y kb.x1 kb.y1 ... kb.xn kb.yn
         # a: light movement (dx, dy)
         self.NUM_NON_KB_DIM = 2
@@ -49,7 +53,8 @@ class MazeLearner:
         self.it = 0
         self.S = None
 
-        self.simulator = KilobotsObjectMazeSimulator()
+        self.simulator = KilobotsObjectMazeSimulator(use_gui)
+        self.use_gui = use_gui
 
     def _getStateActionMatrix(self, S, A):
         # states without kilobot positions + actions + kilobot positions
@@ -191,11 +196,11 @@ class MazeLearner:
 
         """ sampling """
         self.objectShape = 'quad' #t-form
-        self.numKilobots = 20
-        self.numEpisodes = 50
-        self.numStepsPerEpisode = 150
+        self.numKilobots = 15
+        self.numEpisodes = 5
+        self.numStepsPerEpisode = 250
 
-        self.stepsPerSec = 4096
+        self.stepsPerSec = 16384
 
 
         self.sDim = self.NUM_NON_KB_DIM + 2 * self.numKilobots
@@ -405,5 +410,5 @@ class MazeLearner:
         return fig
 
 if __name__ == '__main__':
-    learner = MazeLearner()
+    learner = MazeLearner(False)
     learner.learn('quad', 100, False)

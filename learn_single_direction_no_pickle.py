@@ -56,6 +56,48 @@ class MazeLearner:
         self.simulator = KilobotsObjectMazeSimulator(use_gui)
         self.use_gui = use_gui
 
+        #sampling
+        self.objectShape = 'quad'  # t-form
+        self.numKilobots = 15
+        self.numEpisodes = 5
+        self.numStepsPerEpisode = 250
+
+        """ LSTD """
+        self.lstd.discountFactor = 0.99
+
+        factor = 1.0
+        factorKb = 1.0
+        weightNonKb = 0.5
+
+        self.bwFactorNonKbSA = factor
+        self.bwFactorKbSA = factorKb
+        self.weightNonKbSA = weightNonKb
+
+        self.bwFactorNonKbS = factor
+        self.bwFactorKbS = factorKb
+        self.weightNonKbS = weightNonKb
+
+        self.numFeatures = 200
+
+        """ REPS """
+        self.reps.epsilonAction = 0.5
+
+        """ GP """
+        self.policy.GPMinVariance = 0.0
+        self.policy.GPRegularizer = 0.05
+
+        self.numSamplesSubsetGP = 200
+
+        self.bwFactorNonKbGP = factor
+        self.bwFactorKbGP = factorKb
+        self.weightNonKbGP = weightNonKb
+
+        self.numLearnIt = 1
+
+        self.startEpsilon = 0.0
+        self.epsilon = 0.0
+        self.epsilonFactor = 1.0
+
     def _getStateActionMatrix(self, S, A):
         # states without kilobot positions + actions + kilobot positions
         return c_[S[:, 0:self.NUM_NON_KB_DIM], A, S[:, self.NUM_NON_KB_DIM:]]
@@ -191,15 +233,42 @@ class MazeLearner:
         with open(fileName, 'w') as f:
             f.write(pprint.pformat(params, width=1))
 
-    def learn(self, savePrefix, numSampleIt, continueLearning = True,
-            numLearnIt = 1, startEpsilon = 0.0, epsilonFactor = 1.0):
+    def loadParams(self, fileName):
+        target = open(fileName, 'r')
+        #GP
+        self.bwFactorKbGP = float(target.readline().split()[-1][:-1])
+        self.bwFactorNonKbGP = float(target.readline().split()[-1][:-1])
+        self.policy.GPMinVariance = float(target.readline().split()[-1][:-1])
+        self.numSamplesSubsetGP = int(target.readline().split()[-1][:-1])
+        self.policy.GPRegularizer = float(target.readline().split()[-1][:-1])
+        self.weightNonKbGP = float(target.readline().split()[-1][:-2])
+        #LSTD
+        #S
+        self.bwFactorKbS = float(target.readline().split()[-1][:-1])
+        self.bwFactorNonKbS = float(target.readline().split()[-1][:-1])
+        self.weightNonKbS = float(target.readline().split()[-1][:-2])
+        #SA
+        self.bwFactorKbSA = float(target.readline().split()[-1][:-1])
+        self.bwFactorNonKbSA = float(target.readline().split()[-1][:-1])
+        self.weightNonKbSA = float(target.readline().split()[-1][:-2])
+        #
+        self.lstd.discountFactor = float(target.readline().split()[-1][:-1])
+        self.numFeatures = int(target.readline().split()[-1][:-2])
+        #REPS
+        self.reps.epsilonAction = float(target.readline().split()[-1][:-2])
+        #general
+        self.epsilonFactor = float(target.readline().split()[-1][:-1])
+        self.numLearnIt = int(target.readline().split()[-1][:-1])
+        self.startEpsilon = float(target.readline().split()[-1][:-2])
+        #sampling
+        self.numEpisodes = int(target.readline().split()[-1][:-1])
+        self.numKilobots = int(target.readline().split()[-1][:-1])
+        self.numStepsPerEpisode = int(target.readline().split()[-1][:-1])
+        self.objectShape = target.readline().split()[-1][:-2].replace("'", "")
+
+    def learn(self, savePrefix, numSampleIt, continueLearning = True):
 
         """ sampling """
-        self.objectShape = 'quad' #t-form
-        self.numKilobots = 15
-        self.numEpisodes = 5
-        self.numStepsPerEpisode = 250
-
         self.stepsPerSec = 16384
 
 
@@ -219,41 +288,6 @@ class MazeLearner:
             self.it = 0
 
 
-        """ LSTD """
-        self.lstd.discountFactor = 0.99
-
-        factor = 1.0
-        factorKb = 1.0
-        weightNonKb = 0.5
-
-        self.bwFactorNonKbSA = factor
-        self.bwFactorKbSA = factorKb
-        self.weightNonKbSA = weightNonKb
-
-        self.bwFactorNonKbS = factor
-        self.bwFactorKbS = factorKb
-        self.weightNonKbS = weightNonKb
-
-        self.numFeatures = 200
-
-        """ REPS """
-        self.reps.epsilonAction = 0.5
-
-        """ GP """
-        self.policy.GPMinVariance = 0.0
-        self.policy.GPRegularizer = 0.05
-
-        self.numSamplesSubsetGP = 200
-
-        self.bwFactorNonKbGP = factor
-        self.bwFactorKbGP = factorKb
-        self.weightNonKbGP = weightNonKb
-
-        self.numLearnIt = numLearnIt
-
-        self.startEpsilon = startEpsilon
-        self.epsilon = startEpsilon
-        self.epsilonFactor = epsilonFactor
 
         # make data dir and save params
         if savePrefix == '':
@@ -295,7 +329,7 @@ class MazeLearner:
             SA = self._getStateActionMatrix(self.S, self.A)
             self.PHI_SA = self.kernelSA.getGramMatrix(SA, self.MuSA)
 
-            for j in range(numLearnIt):
+            for j in range(self.numLearnIt):
                 # LSTD to estimate Q function / Q(s,a) = phi(s, a).T * theta
                 self.PHI_SA_ = self._getFeatureExpectation(self.S_, 5, self.MuSA)
                 self.theta = self.lstd.learnLSTD(self.PHI_SA, self.PHI_SA_, self.R)
@@ -411,4 +445,5 @@ class MazeLearner:
 
 if __name__ == '__main__':
     learner = MazeLearner(False)
+    #learner.loadParams('params')
     learner.learn('quad', 100, False)

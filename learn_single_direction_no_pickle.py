@@ -58,8 +58,8 @@ class MazeLearner:
 
         #sampling
         self.objectShape = 'quad'  # t-form
-        self.numKilobots = 15
-        self.numEpisodes = 5
+        self.numKilobots = 20
+        self.numEpisodes = 50
         self.numStepsPerEpisode = 250
 
         """ LSTD """
@@ -363,7 +363,6 @@ class MazeLearner:
             self.epsilon *= self.epsilonFactor
 
             print('sampling iteration took: {}s'.format(time.time() - t))
-
             gc.collect()
 
         with open(os.path.join(savePath, 'rewards'), 'w') as f:
@@ -446,4 +445,4 @@ class MazeLearner:
 if __name__ == '__main__':
     learner = MazeLearner(False)
     #learner.loadParams('params')
-    learner.learn('quad', 100, False)
+    learner.learn('quad', 15, False)

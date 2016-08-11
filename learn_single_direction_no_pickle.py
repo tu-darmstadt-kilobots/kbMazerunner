@@ -24,6 +24,10 @@ import sys
 from zmq import Context, PAIR
 import pickle
 
+from numpy import *
+import numpy as np
+import math
+
 from Helper import Helper
 from LeastSquaresTD import LeastSquaresTD
 from AC_REPS import AC_REPS
@@ -55,6 +59,11 @@ class MazeLearner:
 
         self.simulator = KilobotsObjectMazeSimulator(use_gui)
         self.use_gui = use_gui
+
+
+        def reward_function(objMovement, objRotation, s):
+            return 2 * objMovement[0, 0] - 0.5 * np.abs(objMovement[0, 1]) - 0.05*np.abs(objRotation) - 0.5 * np.log(0.01 + np.abs(s[0,1]))
+        self.reward_function = reward_function
 
     def _getStateActionMatrix(self, S, A):
         # states without kilobot positions + actions + kilobot positions
@@ -197,7 +206,7 @@ class MazeLearner:
         """ sampling """
         self.objectShape = 'quad' #t-form
         self.numKilobots = 15
-        self.numEpisodes = 5
+        self.numEpisodes = 50
         self.numStepsPerEpisode = 250
 
         self.stepsPerSec = 16384
@@ -270,7 +279,7 @@ class MazeLearner:
             t = time.time()
 
             # get new samples
-            St, At, Rt, S_t = self.simulator.getSamples(self.policy, self.objectShape, self.numKilobots, self.numEpisodes, self.numStepsPerEpisode, self.stepsPerSec, self.epsilon, False)
+            St, At, Rt, S_t = self.simulator.getSamples(self.policy, self.objectShape, self.numKilobots, self.numEpisodes, self.numStepsPerEpisode, self.stepsPerSec, self.epsilon, False, self.reward_function)
 
             print('sum reward for last samples: {}'.format(Rt.sum()))
             rewards += [Rt.sum()]

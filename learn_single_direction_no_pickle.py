@@ -102,7 +102,20 @@ class MazeLearner:
         self.epsilon = 0.0
         self.epsilonFactor = 1.0
 
-        self.reward_function = lambda objMovement, objRotation, s: 2 * objMovement[0, 0] - 0.5 * np.abs(objMovement[0, 1]) - 0.05*np.abs(objRotation) - 0.5 * np.log(0.01 + np.abs(s[0,1]))
+        #self.reward_function = lambda objMovement, objRotation, s: 2 * objMovement[0, 0] - 0.5 * np.abs(objMovement[0, 1]) - 0.05*np.abs(objRotation) - 0.5 * np.log(0.01 + np.abs(s[0,1]))
+        self.reward_w = 0.5;
+        self.reward_function = lambda objMovement, objRotation, s: self._getReward(self.reward_w, objMovement[0, 0], objRotation) - 0.5 * np.abs(objMovement[0, 1])- 0.5 * np.log(0.01 + np.abs(s[0,1]))
+
+    def _getReward(self, w, dx, da):
+        alpha = 0.5;
+        da_rot = cos(w * np.pi / 2) * da - sin(w * np.pi / 2) * dx;
+        dx_rot = sin(w * np.pi / 2) * da + cos(w * np.pi / 2) * dx;
+        da = da_rot;
+        dx = dx_rot;
+        a1=(np.abs(np.arctan(da / (dx + 0.00001)) / (np.pi / 2)))**alpha
+        x = (1 - a1) ** 2 * ((100 * np.power((da**2 + dx**2), 0.3))) * (sign(dx) + 1);
+        x = x - (sign(dx) - 1) * dx * 30;
+        return x
 
     def _getStateActionMatrix(self, S, A):
         # states without kilobot positions + actions + kilobot positions

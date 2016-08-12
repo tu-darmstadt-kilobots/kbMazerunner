@@ -369,9 +369,11 @@ class MazeLearner:
                 if savePath != '':
                     figV = self.getValueFunctionFigure(50, 25, 4)
                     figP = self.getPolicyFigure(50, 25, self.objectShape)
+                    figReward = self.getRewardFigure(rewards)
 
                     figV.savefig(os.path.join(savePath, 'V_{}.svg'.format(self.it)))
                     figP.savefig(os.path.join(savePath, 'P_{}.svg'.format(self.it)))
+                    figReward.savefig(os.path.join(savePath, 'reward.svg'))
 
                     self.savePolicyAndSamples(os.path.join(savePath,
                         'policy_samples_{}'.format(self.it)))
@@ -423,7 +425,6 @@ class MazeLearner:
         X = X.flatten()
         Y = Y.flatten()
 
-        print(figureShape)
         lightX = X
         lightY = Y
         alpha = zeros(size(lightX))
@@ -454,14 +455,26 @@ class MazeLearner:
 
         else:
             ax = plt.gca()
-            ax.add_patch(Rectangle((-0.075, -0.075), 0.15, 0.15, facecolor='grey'))
+            ax.add_patch(Rectangle((-0.075, -0.075), 0.15, 0.15, facecolor='grey', alpha=0.5))
 
         plt.quiver(X, Y, U, V)
         plt.title('policy, iteration {}'.format(self.it))
 
         return fig
 
+    def getRewardFigure(self, rewards):
+
+        fig = plt.figure()
+
+        plt.plot(arange(1, size(rewards)+1), rewards)
+        plt.ylabel('reward')
+        plt.xlabel('iteration')
+
+        plt.title('reward per iteration')
+
+        return fig
+
 if __name__ == '__main__':
-    learner = MazeLearner(True)
+    learner = MazeLearner(False)
     #learner.loadParams('params')
     learner.learn('quad', 15, False)

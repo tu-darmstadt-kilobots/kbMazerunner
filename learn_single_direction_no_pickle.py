@@ -65,6 +65,9 @@ class MazeLearner:
         self.numKilobots = 20
         self.numEpisodes = 50
         self.numStepsPerEpisode = 250
+        self.numSampleIt = 15
+        self.numSARSSamples = 10000
+
 
         """ LSTD """
         self.lstd.discountFactor = 0.99
@@ -227,6 +230,8 @@ class MazeLearner:
                 'objectShape': self.objectShape,
                 'numKilobots': self.numKilobots,
                 'numEpisodes': self.numEpisodes,
+                'numSampleIt': self.numSampleIt,
+                'numSARSSamples': self.numSARSSamples,
                 'numStepsPerEpisode': self.numStepsPerEpisode},
             'LSTD': {
                 'discountFactor': self.lstd.discountFactor,
@@ -253,6 +258,7 @@ class MazeLearner:
             f.write(pprint.pformat(params, width=1))
 
     def loadParams(self, fileName):
+        print('loading',fileName)
         target = open(fileName, 'r')
         #GP
         self.bwFactorKbGP = float(target.readline().split()[-1][:-1])
@@ -282,10 +288,12 @@ class MazeLearner:
         #sampling
         self.numEpisodes = int(target.readline().split()[-1][:-1])
         self.numKilobots = int(target.readline().split()[-1][:-1])
+        self.numSARSSamples = int(target.readline().split()[-1][:-1])
+        self.numSampleIt = int(target.readline().split()[-1][:-1])
         self.numStepsPerEpisode = int(target.readline().split()[-1][:-1])
         self.objectShape = target.readline().split()[-1][:-2].replace("'", "")
 
-    def learn(self, savePrefix, numSampleIt, continueLearning = True):
+    def learn(self, savePrefix,  continueLearning = True):
 
         """ sampling """
         self.stepsPerSec = 16384
@@ -319,7 +327,7 @@ class MazeLearner:
 
         rewards = []
 
-        for i in range(numSampleIt):
+        for i in range(self.numSampleIt):
             t = time.time()
 
             # get new samples
@@ -336,7 +344,7 @@ class MazeLearner:
 
             # only keep 10000 samples
             SARS = c_[self.S, self.A, self.R, self.S_]
-            SARS = Helper.getRandomSubset(SARS, 10000)
+            SARS = Helper.getRandomSubset(SARS, self.numSARSSamples)
 
             self.S, self.A, self.R, self.S_ = self._unpackSARS(SARS)
 
@@ -476,5 +484,6 @@ class MazeLearner:
 
 if __name__ == '__main__':
     learner = MazeLearner(False)
-    #learner.loadParams('params')
-    learner.learn('quad', 15, False)
+    if len(sys.argv) == 2:
+        learner.loadParams(sys.argv[1])
+    learner.learn('quad', False)

@@ -44,8 +44,6 @@ class MazeLearner:
 
         # initial random range for actions
         self.aRange = array([[-0.015, 0.015], [-0.015, 0.015]])
-        self.policy = SparseGPPolicy(KilobotKernel(self.NUM_NON_KB_DIM),
-                self.aRange)
 
         # kernels used for LSTD
         self.kernelS = KilobotKernel(self.NUM_NON_KB_DIM)
@@ -87,8 +85,8 @@ class MazeLearner:
         self.reps.epsilonAction = 0.5
 
         """ GP """
-        self.policy.GPMinVariance = 0.0
-        self.policy.GPRegularizer = 0.05
+        self.GPMinVariance = 0.0
+        self.GPRegularizer = 0.05
 
         self.numSamplesSubsetGP = 200
 
@@ -101,6 +99,10 @@ class MazeLearner:
         self.startEpsilon = 0.0
         self.epsilon = 0.0
         self.epsilonFactor = 1.0
+
+        #init policy
+        self.policy = SparseGPPolicy(KilobotKernel(self.NUM_NON_KB_DIM), self.aRange, self.GPMinVariance,
+                                     self.GPRegularizer)
 
         #self.reward_function = lambda objMovement, objRotation, s: 2 * objMovement[0, 0] - 0.5 * np.abs(objMovement[0, 1]) - 0.05*np.abs(objRotation) - 0.5 * np.log(0.01 + np.abs(s[0,1]))
         self.reward_w = 0.5;
@@ -302,8 +304,8 @@ class MazeLearner:
             # reset samples, policy and number of iterations
             self.S, self.A, self.R, self.S_ = empty((0, self.sDim)),\
                     empty((0, 2)), empty((0, 1)), empty((0, self.sDim))
-            self.policy = SparseGPPolicy(KilobotKernel(self.NUM_NON_KB_DIM),
-                    self.aRange)
+            self.policy = SparseGPPolicy(KilobotKernel(self.NUM_NON_KB_DIM), self.aRange, self.GPMinVariance,
+                                     self.GPRegularizer)
             self.it = 0
 
 

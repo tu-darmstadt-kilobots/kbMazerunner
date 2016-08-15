@@ -22,12 +22,12 @@ class SparseGPPolicy:
         aRange: d x 2, d: number of action dimensions
             aRange[i, :] = [l, h] -> A[:, i] in [l, h] when not trained
     """
-    def __init__(self, kernel, aRange):
+    def __init__(self, kernel, aRange, GPMinVariance, GPRegularizer):
         self.GPPriorVariance = 0.1
-        self.GPRegularizer = 1e-6 # TODO toolbox / NLopt
+        self.GPRegularizer = GPRegularizer # TODO toolbox / NLopt
         self.SparseGPInducingOutputRegularization = 1e-6
 
-        self.GPMinVariance = 0.0
+        self.GPMinVariance = GPMinVariance
         self.UseGPBug = False
 
         self.trained = False

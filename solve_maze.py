@@ -70,4 +70,5 @@ if __name__ == '__main__':
         print(('usage: {} <policy file> ' +
                '<# kilobots> <object shape (quad|circle)>').format(sys.argv[0]))
     else:
-        mazeTester.solve(sys.argv[1], int(sys.argv[2]), sys.argv[3])
+        while True:
+            mazeTester.solve(sys.argv[1], int(sys.argv[2]), sys.argv[3])

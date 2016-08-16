@@ -97,6 +97,7 @@ class AC_REPS:
     def _optimizeDualFunction(self, theta, eta):
         lowerBound = r_[-1e10 * ones((self.numFeatures, 1)), matrix([1e-20])]
         upperBound = r_[+1e10 * ones((self.numFeatures, 1)), matrix([1e+10])]
+        upperBound = r_[+1e10 * ones((self.numFeatures, 1)), matrix([1e+10])]
         bounds = tuple(map(tuple, asarray(c_[lowerBound, upperBound])))
 
         startParams = r_[theta, matrix([eta])]

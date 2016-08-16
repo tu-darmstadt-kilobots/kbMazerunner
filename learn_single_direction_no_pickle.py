@@ -60,11 +60,11 @@ class MazeLearner:
 
         #sampling
         self.objectShape = 'quad'  # t-form
-        self.numKilobots = 20
+        self.numKilobots = 8
         self.numEpisodes = 50
         self.numStepsPerEpisode = 250
         self.numSampleIt = 15
-        self.numSARSSamples = 10000
+        self.numSARSSamples = 15000
 
         """ LSTD """
         self.lstd.discountFactor = 0.99
@@ -280,9 +280,11 @@ class MazeLearner:
         #GP
         self.bwFactorKbGP = float(target.readline().split()[-1][:-1])
         self.bwFactorNonKbGP = float(target.readline().split()[-1][:-1])
-        self.policy.GPMinVariance = float(target.readline().split()[-1][:-1])
+        self.GPMinVariance = float(target.readline().split()[-1][:-1])
+        self.policy.GPMinVariance = self.GPMinVariance
         self.numSamplesSubsetGP = int(target.readline().split()[-1][:-1])
-        self.policy.GPRegularizer = float(target.readline().split()[-1][:-1])
+        self.GPRegularizer = float(target.readline().split()[-1][:-1])
+        self.policy.GPRegularizer = self.GPRegularizer
         self.weightNonKbGP = float(target.readline().split()[-1][:-2])
         #LSTD
         #S
@@ -508,7 +510,7 @@ class MazeLearner:
         return fig
 
 if __name__ == '__main__':
-    learner = MazeLearner(False)
+    learner = MazeLearner(True)
     if len(sys.argv) == 2:
         learner.loadParams(sys.argv[1])
     learner.learn('quad', False)

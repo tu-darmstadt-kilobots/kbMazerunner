@@ -66,7 +66,6 @@ class MazeLearner:
         self.numSampleIt = 15
         self.numSARSSamples = 10000
 
-
         """ LSTD """
         self.lstd.discountFactor = 0.99
 
@@ -99,7 +98,6 @@ class MazeLearner:
 
         self.numLearnIt = 1
 
-        self.startEpsilon = 0.0
         self.epsilon = 0.0
         self.epsilonFactor = 1.0
 
@@ -234,7 +232,7 @@ class MazeLearner:
         params = {
             'general': {
                 'numLearnIt': self.numLearnIt,
-                'startEpsilon': self.startEpsilon,
+                'startEpsilon': self.epsilon,
                 'epsilonFactor': self.epsilonFactor},
             'sampling': {
                 'objectShape': self.objectShape,
@@ -303,7 +301,7 @@ class MazeLearner:
         #general
         self.epsilonFactor = float(target.readline().split()[-1][:-1])
         self.numLearnIt = int(target.readline().split()[-1][:-1])
-        self.startEpsilon = float(target.readline().split()[-1][:-2])
+        self.epsilon = float(target.readline().split()[-1][:-2])
         #reward
         self.reward_alpha = float(target.readline().split()[-1][:-1])
         self.reward_beta = float(target.readline().split()[-1][:-1])

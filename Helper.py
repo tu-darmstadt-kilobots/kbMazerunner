@@ -76,7 +76,7 @@ class Helper:
         generates a folder name based on the current date
     """
     @staticmethod
-    def getSaveName():
+    def getSaveName(subFolderPrefix):
         t = datetime.now()
-        return '{}_{}_{}_{}_{}_{}_{}'.format(t.year, t.month, t.day,
-                t.hour, t.minute, t.second, t.microsecond)
+        return subFolderPrefix + '_{}_{}_{}_{}_{}_{}'.format(t.year, t.month, t.day,
+                t.hour, t.minute, t.second)

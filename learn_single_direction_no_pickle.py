@@ -320,7 +320,7 @@ class MazeLearner:
         self.numStepsPerEpisode = int(target.readline().split()[-1][:-1])
         self.objectShape = target.readline().split()[-1][:-2].replace("'", "")
 
-    def learn(self, savePrefix,  continueLearning = True):
+    def learn(self, savePrefix, subFolderPrefix, continueLearning = True):
 
         """ sampling """
         self.stepsPerSec = 16384
@@ -347,7 +347,8 @@ class MazeLearner:
         if savePrefix == '':
             savePath = ''
         else:
-            savePath = os.path.join(savePrefix, Helper.getSaveName())
+
+            savePath = os.path.join(savePrefix, Helper.getSaveName(subFolderPrefix))
             os.makedirs(savePath)
 
             self.saveParams(os.path.join(savePath, 'params'))
@@ -510,7 +511,11 @@ class MazeLearner:
         return fig
 
 if __name__ == '__main__':
-    learner = MazeLearner(True)
+    learner = MazeLearner(False)
+    subFolderPrefix = 'params'
+
     if len(sys.argv) == 2:
         learner.loadParams(sys.argv[1])
-    learner.learn('quad', False)
+        subFolderPrefix = sys.argv[1]
+
+    learner.learn('results', subFolderPrefix, False)

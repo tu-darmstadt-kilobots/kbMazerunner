@@ -328,7 +328,7 @@ class MazeLearner:
         self.lamp_distance_penalty_factor_y = float(target.readline().split()[-1][:-1])
         self.reward_scale_da = float(target.readline().split()[-1][:-1])
         self.reward_scale_dx = float(target.readline().split()[-1][:-1])
-        self.reward_type = float(target.readline().split()[-1][:-1])
+        self.reward_type = int(target.readline().split()[-1][:-1])
         self.reward_w = float(target.readline().split()[-1][:-1])
         self.y_movement_penalty_factor = float(target.readline().split()[-1][:-2])
         #sampling

@@ -250,7 +250,8 @@ class MazeLearner:
                 'numEpisodes': self.numEpisodes,
                 'numSampleIt': self.numSampleIt,
                 'numSARSSamples': self.numSARSSamples,
-                'numStepsPerEpisode': self.numStepsPerEpisode},
+                'numStepsPerEpisode': self.numStepsPerEpisode,
+                'samplingTypeRatio': self.samplingTypeRatio},
             'LSTD': {
                 'discountFactor': self.lstd.discountFactor,
                 'numFeatures': self.numFeatures,
@@ -338,7 +339,8 @@ class MazeLearner:
         self.numSARSSamples = int(target.readline().split()[-1][:-1])
         self.numSampleIt = int(target.readline().split()[-1][:-1])
         self.numStepsPerEpisode = int(target.readline().split()[-1][:-1])
-        self.objectShape = target.readline().split()[-1][:-2].replace("'", "")
+        self.objectShape = target.readline().split()[-1][:-1].replace("'", "")
+        self.samplingTypeRatio = float(target.readline().split()[-1][:-2])
 
     def learn(self, savePrefix, subFolderPrefix, continueLearning = True):
 
@@ -379,7 +381,7 @@ class MazeLearner:
             t = time.time()
 
             # get new samples
-            St, At, Rt, S_t = self.simulator.getSamples(self.policy, self.objectShape, self.numKilobots, self.numEpisodes, self.numStepsPerEpisode, self.stepsPerSec, self.epsilon, False, self.reward_function)
+            St, At, Rt, S_t = self.simulator.getSamples(self.policy, self.objectShape, self.numKilobots, self.numEpisodes, self.numStepsPerEpisode, self.stepsPerSec, self.epsilon, False, self.reward_function, self.samplingTypeRatio)
 
             print('sum reward for last samples: {}'.format(Rt.sum()))
             rewards += [Rt.sum()]

@@ -63,11 +63,11 @@ class MazeLearner:
         self.numKilobots = 8
         self.numEpisodes = 50
         self.numStepsPerEpisode = 250
-        self.numSampleIt = 15
-        self.numSARSSamples = 15000
+        self.numSampleIt = 25
+        self.numSARSSamples = 5000
 
         """ LSTD """
-        self.lstd.discountFactor = 0.99
+        self.lstd.discountFactor = 0.975
 
         factor = 1.0
         factorKb = 1.0
@@ -81,7 +81,7 @@ class MazeLearner:
         self.bwFactorKbS = factorKb
         self.weightNonKbS = weightNonKb
 
-        self.numFeatures = 200
+        self.numFeatures = 300
 
         """ REPS """
         self.reps.epsilonAction = 0.5
@@ -90,7 +90,7 @@ class MazeLearner:
         self.GPMinVariance = 0.0
         self.GPRegularizer = 0.05
 
-        self.numSamplesSubsetGP = 200
+        self.numSamplesSubsetGP = 300
 
         self.bwFactorNonKbGP = factor
         self.bwFactorKbGP = factorKb
@@ -114,7 +114,16 @@ class MazeLearner:
         self.reward_scale_da = 1.0
         self.reward_c1 = 100.0
         self.reward_c2 = -30.0
-        self.reward_function = lambda objMovement, objRotation, s: self._getReward(self.reward_w, objMovement[0, 0], objRotation) - 0.5 * np.abs(objMovement[0, 1])- 0.5 * np.log(0.01 + np.abs(s[0,1]))
+        self.y_movement_penalty_factor = 0.5
+        self.lamp_distance_penalty_factor_x = 0.0
+        self.lamp_distance_penalty_factor_y = 0.0
+        self.lamp_distance_penalty_exponent = 2.0
+        self.reward_type = 0
+        self.reward_function = lambda objMovement, objRotation, s: self._getReward(self.reward_w, objMovement[0, 0], objRotation) - self.y_movement_penalty_factor * np.abs(objMovement[0, 1]) - self.lamp_distance_penalty_factor_x * np.abs(s[0, 0]) ** self.lamp_distance_penalty_exponent - self.lamp_distance_penalty_factor_y * np.abs(s[0, 1]) ** self.lamp_distance_penalty_exponent
+        if self.reward_type == 1:
+            self.reward_function = lambda objMovement, objRotation, s: 2 * objMovement[0, 0] - 0.5 * np.abs(objMovement[0, 1]) - 0.05*np.abs(objRotation) - self.lamp_distance_penalty_factor_x * np.abs(s[0, 0]) ** self.lamp_distance_penalty_exponent - self.lamp_distance_penalty_factor_y * np.abs(s[0, 1]) ** self.lamp_distance_penalty_exponent
+        elif self.reward_type == 2:
+            self.reward_function = lambda objMovement, objRotation, s: 2 * objRotation[0, 0] - 0.5 * np.abs(objMovement[0, 1]) - 0.5 * np.abs(objMovement[0, 0]) - self.lamp_distance_penalty_factor_x * np.abs(s[0, 0]) ** self.lamp_distance_penalty_exponent - self.lamp_distance_penalty_factor_y * np.abs(s[0, 1]) ** self.lamp_distance_penalty_exponent
 
     def _getReward(self, w, dx, da):
         alpha = self.reward_alpha
@@ -268,7 +277,12 @@ class MazeLearner:
                 'c2': self.reward_c2,
                 'scale_da': self.reward_scale_da,
                 'scale_dx': self.reward_scale_dx,
-                'w': self.reward_w
+                'w': self.reward_w,
+                'y_movement_penalty_factor': self.y_movement_penalty_factor,
+                'type': self.reward_type,
+                'lamp_distance_penalty_factor_x': self.lamp_distance_penalty_factor_x,
+                'lamp_distance_penalty_factor_y': self.lamp_distance_penalty_factor_y,
+                'lamp_distance_penalty_exponent': self.lamp_distance_penalty_exponent
             }}
 
         with open(fileName, 'w') as f:
@@ -309,9 +323,14 @@ class MazeLearner:
         self.reward_beta = float(target.readline().split()[-1][:-1])
         self.reward_c1 = float(target.readline().split()[-1][:-1])
         self.reward_c2 = float(target.readline().split()[-1][:-1])
+        self.lamp_distance_penalty_exponent = float(target.readline().split()[-1][:-1])
+        self.lamp_distance_penalty_factor_x = float(target.readline().split()[-1][:-1])
+        self.lamp_distance_penalty_factor_y = float(target.readline().split()[-1][:-1])
         self.reward_scale_da = float(target.readline().split()[-1][:-1])
         self.reward_scale_dx = float(target.readline().split()[-1][:-1])
-        self.reward_w = float(target.readline().split()[-1][:-2])
+        self.reward_type = float(target.readline().split()[-1][:-1])
+        self.reward_w = float(target.readline().split()[-1][:-1])
+        self.y_movement_penalty_factor = float(target.readline().split()[-1][:-2])
         #sampling
         self.numEpisodes = int(target.readline().split()[-1][:-1])
         self.numKilobots = int(target.readline().split()[-1][:-1])

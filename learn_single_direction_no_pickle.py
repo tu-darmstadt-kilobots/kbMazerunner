@@ -65,6 +65,7 @@ class MazeLearner:
         self.numStepsPerEpisode = 250
         self.numSampleIt = 25
         self.numSARSSamples = 5000
+        self.samplingTypeRatio = 0.5
 
         """ LSTD """
         self.lstd.discountFactor = 0.975

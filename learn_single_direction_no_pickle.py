@@ -108,7 +108,7 @@ class MazeLearner:
 
         """ Reward function """
         #self.reward_function = lambda objMovement, objRotation, s: 2 * objMovement[0, 0] - 0.5 * np.abs(objMovement[0, 1]) - 0.05*np.abs(objRotation) - 0.5 * np.log(0.01 + np.abs(s[0,1]))
-        self.reward_w = 0.5
+        self.reward_w = 0.0
         self.reward_alpha = 0.5
         self.reward_beta = 0.3
         self.reward_scale_dx = 1.0
@@ -125,6 +125,11 @@ class MazeLearner:
             self.reward_function = lambda objMovement, objRotation, s: 2 * objMovement[0, 0] - 0.5 * np.abs(objMovement[0, 1]) - 0.05*np.abs(objRotation) - self.lamp_distance_penalty_factor_x * np.abs(s[0, 0]) ** self.lamp_distance_penalty_exponent - self.lamp_distance_penalty_factor_y * np.abs(s[0, 1]) ** self.lamp_distance_penalty_exponent
         elif self.reward_type == 2:
             self.reward_function = lambda objMovement, objRotation, s: 2 * objRotation[0, 0] - 0.5 * np.abs(objMovement[0, 1]) - 0.5 * np.abs(objMovement[0, 0]) - self.lamp_distance_penalty_factor_x * np.abs(s[0, 0]) ** self.lamp_distance_penalty_exponent - self.lamp_distance_penalty_factor_y * np.abs(s[0, 1]) ** self.lamp_distance_penalty_exponent
+        elif self.reward_function == 3:
+            pass
+            self.reward_function_trans = lambda objMovement, objRotation, s: 2 * objMovement[0, 0] - 0.5 * np.abs(objMovement[0, 1]) - 0.05 * np.abs(objRotation) - self.lamp_distance_penalty_factor_x * np.abs(s[0, 0]) ** self.lamp_distance_penalty_exponent - self.lamp_distance_penalty_factor_y * np.abs(s[0, 1]) ** self.lamp_distance_penalty_exponent
+            self.reward_function_rot = lambda objMovement, objRotation, s: 2 * objRotation[0, 0] - 0.5 * np.abs(objMovement[0, 1]) - 0.5 * np.abs(objMovement[0, 0]) - self.lamp_distance_penalty_factor_x * np.abs(s[0, 0]) ** self.lamp_distance_penalty_exponent - self.lamp_distance_penalty_factor_y * np.abs(s[0, 1]) ** self.lamp_distance_penalty_exponent
+            self.reward_function = lambda objMovement, objRotation, s : self.reward_w * self.reward_function_rot(objMovement, objRotation) + (1-np.abs(self.reward_w)) * self.reward_function_trans(objMovement, objRotation)
 
     def _getReward(self, w, dx, da):
         alpha = self.reward_alpha

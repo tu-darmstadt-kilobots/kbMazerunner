@@ -386,7 +386,7 @@ class MazeLearner:
             t = time.time()
 
             # get new samples
-            St, At, Rt, S_t = self.simulator.getSamples(self.policy, self.objectShape, self.numKilobots, self.numEpisodes, self.numStepsPerEpisode, self.stepsPerSec, self.epsilon, False, self.reward_function, self.samplingTypeRatio)
+            St, At, Rt, S_t = self.simulator.getSamples(self.policy, self.objectShape, self.numKilobots, self.numEpisodes, self.numStepsPerEpisode, self.stepsPerSec, self.epsilon, False, self.reward_function, self.samplingTypeRatio, i/self.numSampleIt)
 
             print('sum reward for last samples: {}'.format(Rt.sum()))
             rewards += [Rt.sum()]
